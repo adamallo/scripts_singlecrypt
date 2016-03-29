@@ -1,0 +1,48 @@
+These programs implement a 28-state model of copy number
+variation.  The states run from no copies to six copies with
+all possible combinations of A and B alleles.  Transitions
+among these states are controlled by three rates:
+
+c  -- rate of copy-neutral LOH per gene copy
+d  -- rate of loss per gene copy
+g  -- rate of gain per gene copy
+
+The model is irreversible for any combination of parameter
+values as once you lose A or B you cannot get it back.
+In the current code c, d and g are hard-coded at the tops
+of the component programs.
+
+There are two Python programs involved.  The first,
+ratematrix28.py, takes values of c, d and g and returns
+the rate matrixes needed for the eigenvalue/eigenvector
+approach to likelihood calculation.  These matrices are
+B, the diagonalized eigenvalues; T, the eigenvector;
+and Tinv, the inverse of T.  They are written to a 
+file ("pickled") for use in the second program.
+
+These matrices can be used until c, d or g changes,
+then of course must be recalculated.  
+
+The second program evaluate28.py unpickles the matrices
+and uses them for some simple likelihood calculations.  I have
+a tree with three tips and two internal branch lengths t1
+and t2, and evaluate the likelihood for various combinations
+of t1 and t2 (it was too much work to code a real
+maximizer just to test the method!)
+
+Both of these programs rely on an arbitrary numbering of
+the 28 states, so would expect data in that format.  You can
+see what the numbering scheme is at the start of 
+ratematrix28.py.
+
+I also include simulate28.py, which simulates data under
+this model.  It deliberately does not share code with the
+others to avoid shared bugs.
+
+If you have any questions please let me know!  This code
+makes heavy use of Python math libraries and may be a bit
+obscure.
+
+Mary
+
+
