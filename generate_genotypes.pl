@@ -2,9 +2,12 @@
 
 use strict;
 use warnings;
+use Time::Piece;
+use Time::Seconds;
 
 our $max_n_copies=6;##So far I am considering until 6 copies per allele. We could modify this to only consider the maximum actual number. Important if we would create the substitution model accordingly.
- 
+our $period_log=1000;
+our $n_gen=10000000; 
 
 sub GenToAscii
 {
@@ -33,49 +36,149 @@ else
 chdir($input_dir) or die "The input directory $input_dir is not accesible";
 
 my @files=<*A.txt>;
+my @timestamp_files=<*_data_timestamps.txt>;
 
+##Hash with patient: DOB timestamp
+my $DOB_file="dobs.txt";
+open(my $FILEDOB,$DOB_file);
+my @line_dobs=<$FILEDOB>;
+close($FILEDOB);
+my %dobs;
+my @temp;
+foreach my $dobline (@line_dobs)
+{
+	@temp=split(" ",$dobline);
+	$dobs{$temp[0]}=$temp[1];
+	#print("Key: $temp[0], timestamp:$temp[1]\n"); #
+}
+
+##Main loop
 for my $filea (@files)
 {
+	##File opening and reading
 	my @dataA;
 	my @dataB;
 	my $fileb=$filea;
-	$fileb=~s/(.*)allA.txt/$1allB.txt/;
+	my $fileTimestamps=$filea;
+	my $id=$filea;
+	$fileb=~s/(.*)A.txt/$1B.txt/;
+	$id=~s/(.*)_phased.*.txt/$1/;
+	my $dob=$dobs{$id};
+	if (!defined($dob))
+	{
+		$dob=0;
+		print("WARNING:There is no date of birth for the patient $id\n");
+	}
+	$fileTimestamps=~s/(.*)_phased.*.txt/$1_data_timestamps.txt/;
 	(-e $fileb) or die "There is no matching B allele file for $filea";
+	(-e $fileTimestamps) or die "There is no matching timestamps file $fileTimestamps for $filea";
 	my $FILEA;
 	my $FILEB;
+	my $FILETIMES;
 	open($FILEA,"<",$filea);
 	open($FILEB,"<",$fileb);
+	open($FILETIMES,$fileTimestamps);
 	my @a_cont= <$FILEA>;
 	my @b_cont= <$FILEB>;
+	my @time_lines= <$FILETIMES>;
 	close($FILEA);
 	close($FILEB);
+	close($FILETIMES);
 
-	my @samples=(split(" ",$a_cont[0]));
-	my @samplesB=(split(" ",$b_cont[0]));
-	
-	((join("",@samples) eq join("",@samplesB)) && (scalar(@samples)==scalar(@samplesB)) && scalar(@a_cont) eq scalar(@b_cont)) or die "The parsed samples from files $filea and $fileb are not equivalent, check input files!\n";
-	splice(@samples,0,5);
+	my @samples=split("\t",$a_cont[0]); #Header
+	my @samplesB=split("\t",$b_cont[0]);
+	chomp(@samples);
+	chomp(@samplesB);
+	#print("DEBUG: ",join(",",@samples));
+
+	((join("",@samples) eq join("",@samplesB)) && (scalar(@samples)==scalar(@samplesB)) && scalar(@a_cont) eq scalar(@b_cont)) or die "The parsed samples from files $filea and $fileb are not equivalent, check input files!\n"; #Checking if the samples are the same, the same number and the same number of loci
+
+	##Parsing the alleles into dataA and dataB arrays	
+	splice(@samples,0,5);# Keeping only sample names
 	splice(@samplesB,0,5);
-	
-	my @a_gens;
+	my @a_gens; #Genotypes
 	my @b_gens;
-	
-	for(my $i=0;$i<scalar(@a_cont)-1;++$i)
+	my $temp_a;
+	my $temp_b;
+	print("Working in $id, fileA $filea file B $fileb, n_loci= ",scalar(@a_cont)-1 ,", ",scalar(@b_cont)-1,"\n");
+
+	for(my $i=0;$i<(scalar(@a_cont)-1);++$i)
 	{
-		@a_gens=split(" ",$a_cont[$i+1]);
-		@b_gens=split(" ",$b_cont[$i+1]);
-		splice(@a_gens,0,5);
+		@a_gens=split("\t",$a_cont[$i+1]);
+		@b_gens=split("\t",$b_cont[$i+1]);
+		chomp(@a_gens);
+		chomp(@b_gens);
+		splice(@a_gens,0,5);#Keeping only the genotypes
 		splice(@b_gens,0,5);
+		#print("DEBUG: line $i ",scalar @a_gens," ",scalar @b_gens," ",scalar @samples," ", scalar @samplesB,"\n");
 		for(my $j=0; $j<scalar(@samples); ++$j)
 		{
-			$dataA[$j][$i]=$a_gens[$j];
-			$dataB[$j][$i]=$b_gens[$j];
+			if($a_gens[$j]+$b_gens[$j] > $max_n_copies)
+			{
+				if($a_gens[$j] == $b_gens[$j])
+				{
+					$temp_a=$max_n_copies/2;
+					$temp_b=$max_n_copies/2;
+				}
+				else
+				{
+					$temp_a=($a_gens[$j] > $max_n_copies ? $max_n_copies : $a_gens[$j]);
+					$temp_b=($b_gens[$j] > $max_n_copies ? $max_n_copies : $b_gens[$j]);
+				}
+				my $last_modified=0;
+				while($temp_a+$temp_b>$max_n_copies)
+				{
+					if($temp_a>$temp_b)
+					{
+						$temp_a-=1;
+						$last_modified=0;
+					}
+					elsif($temp_b>$temp_a)
+					{
+						$temp_b-=1;
+						$last_modified=1;
+					}
+					else
+					{
+						if($last_modified==0)
+						{
+							$temp_b-=1;
+							$last_modified=1;
+						}
+						else
+						{
+							$temp_a-=1;
+							$last_modified=0;
+						}
+					}
+				}
+				print("WARNING: The files $filea and $fileb code for a segment with states $a_gens[$j],$b_gens[$j] in the sample $samples[$j], locus $i, while the maximum state is $max_n_copies. The output state will be $temp_a,$temp_b\n");
+				$dataA[$j][$i]=$temp_a;
+				$dataB[$j][$i]=$temp_b;
+			}	
+			else
+			{
+				$dataA[$j][$i]=$a_gens[$j];
+				$dataB[$j][$i]=$b_gens[$j];
+			}
 		}
 	}
+
+	##Timestamp hash
+	my %times;
+	foreach my $timeline (@time_lines)
+	{
+        	@temp=split(" ",$timeline);
+        	$times{$temp[0]}=$temp[1];
+        	#print("Key: $temp[0], timestamp: $temp[1]\n"); #DEBUG
+	}
+
 	my $OUTFILE;
 	my $outname=$filea;
 	my $n_samples=scalar(@samples);
-	my $n_char=scalar(@a_gens);
+	my $n_char=scalar(@a_cont)-1;
+	my $max_date;
+	my $min_date;
 	
 	if ($output_format=~/nexus/i)
 	{
@@ -115,10 +218,33 @@ for my $filea (@files)
 		$beast_outname=~s/\.xml//;
 		open($OUTFILE,">$outname");
 		print $OUTFILE "<?xml version=\"1.0\" standalone=\"yes\"?>\n<beast>\n<taxa id=\"taxa\">\n";
+		my $timestamp;
 		for (my $i=0;$i<$n_samples;++$i)
                 {
                         print $OUTFILE "\t<taxon id=\"$samples[$i]\">\n";
-			#print $OUTFILE "\t\t<date value=\"$date\" direction=\"forwards\" units=\"years\"/>"; DM if eventually I use this to generate the final xml I would need to put here the tip dates.
+			#print "DEBUG: taxon $samples[$i], timestamp $times{$samples[$i]}\n"; #DEBUG
+			$times{$samples[$i]} or die "There is not timestamp information for the sample $samples[$i] in the file $fileTimestamps\n";
+			$timestamp=$times{$samples[$i]}-$dob;
+			my $t_object=Time::Seconds->new($timestamp); ##Times in years since DOB
+			my $time=$t_object->years;
+			unless ($max_date)
+			{
+				$max_date=$time;
+			}
+			unless ($min_date)
+			{
+				$min_date=$time;
+			}
+			if ($time > $max_date)
+			{
+				$max_date=$time;
+			}
+			if ($time < $min_date)
+			{
+				$min_date=$time;
+			}
+			#print "DEBUG: sample timestamp $times{$samples[$i]}, DOB $dob, epochtime $timestamp, epochtime(years) $time\n"; #Debug
+			print $OUTFILE "\t\t<date value=\"$time\" direction=\"forwards\" units=\"years\"/>";
 			print $OUTFILE "\t</taxon>\n";
                 }
 		print $OUTFILE "</taxa>\n\n<generalDataType id=\"cnv\">";
@@ -152,6 +278,7 @@ for my $filea (@files)
                         print $OUTFILE "\n\t</sequence>";
                 }
                 print $OUTFILE "\n</alignment>\n";
+		my $diff_date=$max_date-$min_date;
 		my $text = qq{
 	<patterns id="patterns" from="1" strip="false">
 		<alignment idref="alignment"/>
@@ -175,7 +302,7 @@ for my $filea (@files)
 	<treeModel id="treeModel">
 		<coalescentTree idref="startingTree"/>
 		<rootHeight>
-			<parameter id="treeModel.rootHeight" lower="30"/>
+			<parameter id="treeModel.rootHeight"/>
 		</rootHeight>
 		<nodeHeights internalNodes="true">
 			<parameter id="treeModel.internalNodeHeights"/>
@@ -199,18 +326,14 @@ for my $filea (@files)
  
 	<strictClockCenancestorBranchRates id="branchRates">
 		<rate>
-<!--
-			<parameter id="clock.rate" value="2.3E-5" lower="0.0" upper="100.0"/>
--->
 			<parameter id="clock.rate" value="1"/>
 		</rate>
 	</strictClockCenancestorBranchRates>
 
 	<frequencyModel id="frequencies">
 		<dataType idref="cnv"/>
-		<alignment idref="alignment"/>
 		<frequencies>
-			<parameter id="cnv.frequencies" dimension="28"/>
+			<parameter id="cnv.frequencies" value="0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"/>
 		</frequencies>
 	</frequencyModel>
 	
@@ -239,27 +362,27 @@ for my $filea (@files)
 		<patterns idref="patterns"/>
 		<treeModel idref="treeModel"/>
 		<siteModel idref="siteModel"/>
-        	<cenancestor>
-        		<parameter id="luca" value="30.0" lower="30.0" upper="30.0"/>
-        	</cenancestor>
+        	<cenancestorHeight>
+        		<parameter id="luca_height" lower="$diff_date" upper="$max_date"/>
+        	</cenancestorHeight>
+		<cenancestorBranch>
+			<parameter id="luca_branch" value="1" upper="$min_date" lower="0.0"/>
+			<!-- Value 1 as a safe starting value -->
+		</cenancestorBranch>
 		<strictClockCenancestorBranchRates idref="branchRates"/>
 	</cenancestorTreeLikelihood>
 	
 	<operators id="operators" optimizationSchedule="default">
-		<scaleOperator scaleFactor="0.75" weight="3">
-                        <parameter idref="cnv.gain"/>
-        	</scaleOperator>
         	<scaleOperator scaleFactor="0.75" weight="3">
                         <parameter idref="cnv.loss"/>
         	</scaleOperator>
         	<scaleOperator scaleFactor="0.75" weight="3">
                         <parameter idref="cnv.conversion"/>
         	</scaleOperator>
-<!--		
 		<scaleOperator scaleFactor="0.75" weight="3">
                         <parameter idref="clock.rate"/>
         	</scaleOperator>
--->
+
 		<subtreeSlide size="0.06" gaussian="true" weight="15">
 			<treeModel idref="treeModel"/>
 		</subtreeSlide>
@@ -278,6 +401,10 @@ for my $filea (@files)
 		<uniformOperator weight="30">
 			<parameter idref="treeModel.internalNodeHeights"/>
 		</uniformOperator>
+		
+		<scaleOperator scaleFactor="0.75" weight="3"> <!-- We operate the branch since it is relative to the root. Operating luca_height is error prone, since it depends on the root -->
+                        <parameter idref="luca_branch"/>
+                </scaleOperator>
 
 		<scaleOperator scaleFactor="0.75" weight="3">
 			<parameter idref="constant.popSize"/>
@@ -285,9 +412,7 @@ for my $filea (@files)
 
                 <upDownOperator scaleFactor="0.75" weight="3">
                         <up>
-<!--
                                 <parameter idref="clock.rate"/>
--->
                         </up>
                         <down>
                                 <parameter idref="treeModel.allInternalNodeHeights"/>
@@ -297,18 +422,31 @@ for my $filea (@files)
 	</operators>
 
 	<!-- Define MCMC                                                             -->
-	<mcmc id="mcmc" chainLength="20000000" autoOptimize="true" operatorAnalysis="$beast_outname.ops">
+	<mcmc id="mcmc" chainLength="$n_gen" autoOptimize="true" operatorAnalysis="$beast_outname.ops">
 		<posterior id="posterior">
 			<prior id="prior">
                                 <coalescentLikelihood idref="coalescent"/>
-								<!-- rate priors???-->
-                                	<!-- Constrains root height, makes prior negative inf if root height gets beyond 30 -->
-                                <uniformPrior lower="0.0" upper="30.0">
-                                	<parameter idref="treeModel.rootHeight"/>
-                                </uniformPrior>
 				<oneOnXPrior>
 					<parameter idref="constant.popSize"/>
 				</oneOnXPrior>
+
+				<!-- Clock (gain) Rate Prior. More than 50 SGAs/breakpoint/year seems an unreasonable enough value to use as upper bound-->
+				<uniformPrior lower="0.0" upper="50">
+					<parameter idref="clock.rate"/>
+				</uniformPrior>
+				
+				<!-- Loss and conversion (relative to gain) rate priors. More than 5 times quicker than gain seems unreasonable enough to be used as upper bound-->
+				<uniformPrior lower="0.0" upper="5">
+					<parameter idref="cnv.loss"/>
+				</uniformPrior>
+				<uniformPrior lower="0.0" upper="5">
+					<parameter idref="cnv.conversion"/>
+				</uniformPrior>
+
+                                <!-- Cenancestor Prior on the height, since it is easier to have a meaningfull prior on it (time of the initial development of the BE fragment) -->
+                                <uniformPrior lower="$diff_date" upper="$max_date">
+                                	<parameter idref="luca_height"/>
+                                </uniformPrior>
 			</prior>
 			<likelihood id="likelihood">
 				<cenancestorTreeLikelihood idref="treeLikelihood"/>
@@ -317,7 +455,7 @@ for my $filea (@files)
 		<operators idref="operators"/>
 
 		<!-- write log to screen                                                     -->
-		<log id="screenLog" logEvery="1000">
+		<log id="screenLog" logEvery="$period_log">
 			<column label="Posterior" dp="4" width="12">
 				<posterior idref="posterior"/>
 			</column>
@@ -327,33 +465,39 @@ for my $filea (@files)
 			<column label="Likelihood" dp="4" width="12">
 				<likelihood idref="likelihood"/>
 			</column>
-			<column label="gain_rate" sf="6" width="12">
-				<parameter idref="cnv.gain"/>
-			</column>
-			<column label="loss_rate" sf="6" width="12">
+			<column label="rel_loss_rate" sf="6" width="12">
 				<parameter idref="cnv.loss"/>
 			</column>
-			<column label="conversion_rate" sf="6" width="12">
+			<column label="rel_conv_rate" sf="6" width="12">
 				<parameter idref="cnv.conversion"/>
 			</column>
-<!--			<column label="clock.rate" sf="6" width="12">
+			<column label="gain_rate" sf="6" width="12">
 				<parameter idref="clock.rate"/>
 			</column>
--->
+
 			<column label="rootHeight" sf="6" width="12">
 				<parameter idref="treeModel.rootHeight"/>
+			</column>
+			
+			<column label="luca_height" sf="6" width="12">
+				<parameter idref="luca_height"/>
+			</column>
+			
+			<column label="luca_branch" sf="6" width="12">
+				<parameter idref="luca_branch"/>
 			</column>
 		</log>
 
 		<!-- write log to file                                                       -->
-		<log id="fileLog" logEvery="1000" fileName="$beast_outname.log" overwrite="false">
+		<log id="fileLog" logEvery="$period_log" fileName="$beast_outname.log" overwrite="false">
 			<posterior idref="posterior"/>
 			<prior idref="prior"/>
 			<likelihood idref="likelihood"/>
-			<parameter idref="cnv.gain"/>
 			<parameter idref="cnv.loss"/>
 			<parameter idref="cnv.conversion"/>
 			<parameter idref="treeModel.rootHeight"/>
+			<parameter idref="luca_height"/>
+			<parameter idref="luca_branch"/>
 			<parameter idref="constant.popSize"/>
 			<parameter idref="clock.rate"/>
 			<cenancestorTreeLikelihood idref="treeLikelihood"/>
@@ -361,7 +505,7 @@ for my $filea (@files)
 		</log>
 
 		<!-- write tree log to file                                                  -->
-		<logTree id="treeFileLog" logEvery="1000" nexusFormat="true" fileName="$beast_outname.trees" sortTranslationTable="true">
+		<logTree id="treeFileLog" logEvery="$period_log" nexusFormat="true" fileName="$beast_outname.trees" sortTranslationTable="true">
 			<treeModel idref="treeModel"/>
 			<trait name="rate" tag="rate">
 				<strictClockCenancestorBranchRates idref="branchRates"/>

@@ -6,9 +6,9 @@
 # AABBBB, ABBBBB, BBBBBB
 
 numstates = 28
-c = 0.5
-d = 0.5
-g = 0.5
+c = 0.9
+d = 0.2
+g = 0.3
 
 def rates(c, d, g):
   r = [[0.0 for x in xrange(numstates)] for x in xrange(numstates)]

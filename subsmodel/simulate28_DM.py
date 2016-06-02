@@ -65,9 +65,9 @@ aaaaa='Y'
 aaaaab='Z'
 aaaaaa='['
 
-c = 0.1
-d = 0.2
-g = 0.4
+c = 0.3
+d = 0.1
+g = 0.2
 
 failnum = -1.0
 bigtime = 10000000.0
@@ -327,7 +327,7 @@ def simseqtree(numloci,tree):
 
 # main program
 
-numloci = 500
+numloci = 50
 #t1 = 0.2
 #t2 = 0.3
 #branch1 = simbranch(t1,numloci)

@@ -5,8 +5,8 @@
 
 import random
 import math
-c = 0.1
-d = 0.2
+c = 0.9
+d = 0.6
 g = 0.4
 
 failnum = -1.0
