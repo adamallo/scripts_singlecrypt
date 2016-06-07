@@ -6,8 +6,8 @@ use Time::Piece;
 use Time::Seconds;
 
 our $max_n_copies=6;##So far I am considering until 6 copies per allele. We could modify this to only consider the maximum actual number. Important if we would create the substitution model accordingly.
-our $period_log=1000;
-our $n_gen=10000000; 
+our $period_log=10000;
+our $n_gen=100000000; 
 
 sub GenToAscii
 {
@@ -373,44 +373,43 @@ for my $filea (@files)
 	</cenancestorTreeLikelihood>
 	
 	<operators id="operators" optimizationSchedule="default">
-        	<scaleOperator scaleFactor="0.75" weight="3">
+        	<scaleOperator scaleFactor="0.5" weight="1.0">
                         <parameter idref="cnv.loss"/>
         	</scaleOperator>
-        	<scaleOperator scaleFactor="0.75" weight="3">
+        	<scaleOperator scaleFactor="0.5" weight="1.0">
                         <parameter idref="cnv.conversion"/>
         	</scaleOperator>
-		<scaleOperator scaleFactor="0.75" weight="3">
+		<scaleOperator scaleFactor="0.5" weight="10.0">
                         <parameter idref="clock.rate"/>
         	</scaleOperator>
-
-		<subtreeSlide size="0.06" gaussian="true" weight="15">
+		<subtreeSlide size="2.5" gaussian="true" weight="15.0"> <!-- 2.5 years. They will be automatically optimized by BEAST though -->
 			<treeModel idref="treeModel"/>
 		</subtreeSlide>
-		<narrowExchange weight="15">
+		<narrowExchange weight="15.0">
 			<treeModel idref="treeModel"/>
 		</narrowExchange>
-		<wideExchange weight="3">
+		<wideExchange weight="3.0">
 			<treeModel idref="treeModel"/>
 		</wideExchange>
-		<wilsonBalding weight="3">
+		<wilsonBalding weight="3.0">
 			<treeModel idref="treeModel"/>
 		</wilsonBalding>
-		<scaleOperator scaleFactor="0.75" weight="3">
+		<scaleOperator scaleFactor="0.75" weight="5.0">
 			<parameter idref="treeModel.rootHeight"/>
 		</scaleOperator>
-		<uniformOperator weight="30">
+		<uniformOperator weight="30.0">
 			<parameter idref="treeModel.internalNodeHeights"/>
 		</uniformOperator>
 		
-		<scaleOperator scaleFactor="0.75" weight="3"> <!-- We operate the branch since it is relative to the root. Operating luca_height is error prone, since it depends on the root -->
+		<scaleOperator scaleFactor="0.2" weight="1.0"> <!-- We operate the branch since it is relative to the root. Operating luca_height is error prone, since it depends on the root -->
                         <parameter idref="luca_branch"/>
                 </scaleOperator>
 
-		<scaleOperator scaleFactor="0.75" weight="3">
+		<scaleOperator scaleFactor="0.5" weight="3.0">
 			<parameter idref="constant.popSize"/>
 		</scaleOperator>
 
-                <upDownOperator scaleFactor="0.75" weight="3">
+                <upDownOperator scaleFactor="0.75" weight="5.0">
                         <up>
                                 <parameter idref="clock.rate"/>
                         </up>
@@ -529,7 +528,7 @@ for my $filea (@files)
 		for(my $i=0;$i<scalar(@samples);++$i)
 		{
 			print $OUTFILE "$samples[$i] ";
-			for(my $j=0;$j<scalar(@a_gens)-1;++$j)
+			for(my $j=0;$j<$n_char;++$j)
 			{
 				print $OUTFILE "$dataA[$i][$j]$dataB[$i][$j],";
 			}
