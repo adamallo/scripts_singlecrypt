@@ -16,14 +16,14 @@ close $INFILE;
 
 shift @dict;
 my %final_dict;
-foreach my $dictline (@dict)
+for (my $i=0; $i<scalar(@dict)-1; ++$i)
 {
-	my @columns=split(" ",$dictline);
+	my @columns=split(" ",$dict[$i]);
 	my $key=$columns[$i_column-1];
 	my $subc=$columns[$o_column-1];
-	my $int=$columns[scalar(@columns)-1];
-	$content=~s/\b$key\b/$int/gme;
-	$final_dict{$int}=$subc;
+	print("$key,$subc,$i\n");
+	$content=~s/\b$key\b/$i/gme;
+	$final_dict{$i}=$subc;
 }
 foreach my $key (keys %final_dict)
 {

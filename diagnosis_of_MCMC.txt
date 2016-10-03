@@ -1,0 +1,52 @@
+Diagnosis of MCMC performance
+-----------------------------
+This is a quick and dirty document for my own reference only.
+
+Extracted from my head, a talk by Brian Moore (http://treethinkers.org/wp-content/uploads/2013/03/MCMC.pdf), a beast tutorial on ESSs(http://beast.bio.ed.ac.uk/increasing-esss), the decronization forum (http://treethinkers.blogspot.ch/2009/05/for-this-unauthorized-installment-of.html), and the documentation of RWTY(https://github.com/danlwarren/RWTY).
+
+Tracer is used mostly for continuous parameters, while RWTY for discrete parameters (topology).
+
+-Single chain
+	-Convergence
+		-Tracer:
+			-Time-series trace: Must stabilize. May jump before convergence. 
+				-Slow convergence (continuous change: underparameterized model, scale too small (acceptance too high) or inappropriate priors)
+				-Decrease in loglikelihood after an initial steady increase: over-parameterization, unrealistic priors or weak parameters
+			
+		-AWTY/RWTY:
+			-Cumulative split frequency: must stabilize
+			-Cumulative change in split frequency : muts get to really low values over time
+			
+	-Mixing
+		-Tracer:
+			-Fuzzy caterpillar
+			-ACT (max:sampling frequency, ideal: not too far)
+			-Marginal posteriors with reasonable shape: multimodal distributions show non-identifiability between two (or more) parameters.
+			
+		-RWTY:
+			-MDS of tree distances well distributed.
+			-Split frequency sliding window: must mix well.
+			-Split frequency change sliding window: must be flat.
+			-Autocorrelation plots: flat lines (no autocorrelation whatsoever).
+			
+		-Operator acceptance: 0.2 ~ 0.7 (to increase rate decrease scale)
+	
+	-Sample size (related to mixing+length)
+		-Tracer(continuous)+RWTY(trees): ESS >200 (at least >100). Ideal = n_samples. If it is close to the ideal, you can increase the sampling frequency to get more samples with the same data, since the autocorrelation is 0.
+		
+-Prior (run the program sampling only the prior)
+	-Tracer: Check that the posterior is not almost just the prior
+	
+-Multiple chains
+	The more the better. Two is quite low. For example, in a scenario with 2 real optima, you would have a 50% chance of sampling the same optima, getting posteriors of 1 when they should be 0.5.
+
+	-Convergence:
+		-Tracer: 
+			- Compare marginal posterior distributions.
+		-R(EDISON package)/MrBayes
+			- Calculate the PSRF (should be 1)
+		-RWTY(MrBayes also for the ASDSF)
+			- Calculate the average standard deviation of split frequency (should be below 0.01, over-parameterized (or with bad priors) models usually oscillate).
+			- MDS: Exploring the same area of the space.
+			- Split frequency scatterplot matrix: the split frequency of one split must be the same in each pair of chains.
+			
