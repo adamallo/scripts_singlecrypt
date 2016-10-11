@@ -8,7 +8,7 @@ perl -p0e 's/D.*?= //sg' Results/trees | perl -p0e 's/\n+/\n/sg' > ../trees/tree
 mv Results ../outlogs
 cd ..
 mkdir xml
-python $SCRIPTS_DIR/../add_cenan_years.py -i trees/trees.tree -o trees/rooted_scaled.trees -gt 365 -od 20 -ox xml/tree -a 40 ##Adds the outgroup and scales the tree in time units
+python $SCRIPTS_DIR/../add_cenan_years.py -i trees/trees.tree -o trees/rooted_scaled.trees -gt 365 -od 20 ##Adds the outgroup and scales the tree in time units
 mkdir alignments
+rates=(0.0001 0.001 0.01);gds=(0 0.05 "random");mods=("none" "baseline" "max2");i=0;seed=1;while read tree; do echo $tree > trees/tree${i}.tree;for gd in ${gds[*]}; do for rate in ${rates[*]}; do for mod in ${mods[*]}; do echo "Simulating tree${i}_r${rate}_gd${gd}_mod${mod}.xml"; if [[ $gd == "random" ]]; then python $SCRIPTS_DIR/simulate.py -d $rate -c $rate -g $rate -gd 0 --randomGD 2 -n 100 --xml -a 40 --mod $mod -i trees/tree${i}.tree -o xml/tree${i}_r${rate}_gd${gd}_mod${mod}.xml --seed $seed; else python $SCRIPTS_DIR/simulate.py -d $rate -c $rate -g $rate -gd $gd -n 100 --xml -a 40 --mod $mod -i trees/tree${i}.tree -o xml/tree${i}_r${rate}_gd${gd}_mod${mod}.xml --seed $seed;fi;done;seed=$(($seed+1));done;done;i=$(($i+1));done < trees/rooted_scaled.trees
 
-rates=(0.0001 0.001 0.01);gds=(0 0.05);i=0;while read tree; do echo $tree > trees/tree${i}.tree;for gd in ${gds[*]}; do for rate in ${rates[*]}; do python $SCRIPTS_DIR/simulate.py -d $rate -c $rate -g $rate -gd $gd -n 100 --xml True -i trees/tree${i}.tree -o xml/tree${i}_r${rate}_gd${gd}.xml.temp; cat xml/tree${i}.xml > xml/tree${i}_r${rate}_gd${gd}.xml; cat xml/tree${i}_r${rate}_gd${gd}.xml.temp >> xml/tree${i}_r${rate}_gd${gd}.xml; rm -f tree${i}_r${rate}_gd${gd}.xml.temp;done;done;i=$(($i+1));done < trees/rooted_scaled.trees
