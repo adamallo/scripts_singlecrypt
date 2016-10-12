@@ -83,6 +83,55 @@ arrayChar=(('@','A','B','C','D','E','F'),('G','H','I','J','K','L'),('M','N','O',
 ##FUNCTIONS
 ##########
 
+#Converts str sequences to lists of touples
+def strToTouples(seq):
+  seqTouples=list()
+  for char in seq:
+    seqTouples.append(charDict[char])
+  return seqTouples
+
+#Duplicate list of touples
+def applyGdTouple(seq):
+  newseq=list()
+  for touple in seq:
+    a=touple[0]*2
+    b=touple[1]*2
+    newseq.append((a,b))
+  return newseq
+
+#Converts touple sequences to string sequences
+def touplesToStr(seq):
+  newseq=""
+  for touple in seq:
+    oa=touple[0]
+    ob=touple[1]
+    a=oa
+    b=ob
+    while a + b > 6: ##Keeps decreasing the state of the highest allele until the initial condition is met. If the a==b, it uses the original states to give priority, if oa==ob, reduces the two of them
+      if a>b:
+        a-=1
+      elif b>a:
+        b-=1
+      else:# b==a
+        if ob>oa:
+          a-=1
+        elif oa>ob:
+          b-=1
+        else:
+            a-=1
+            b-=1
+#      if a > oa:
+#        a-=1
+#      if b > ob:
+#        b-=1
+    if oa + ob > 6:
+      print("WARNING: Original state %d,%d, modified to fit in our model %d,%d" % (oa,ob,a,b))
+    #if a + b > 6 :
+      #print("DEBUG:This sequence cannot undergo GD, this state would be %d,%d" % (a,b)) 
+      #raise Exception()
+    newseq+=arrayChar[a][b]
+  return newseq
+
 #Duplicates Sequence
 def applyGdSeq(seq):
   newseq=""
@@ -91,20 +140,18 @@ def applyGdSeq(seq):
     ob=charDict[char][1]
     a=oa*2
     b=ob*2
-    while a + b > 6: ##Keeps decreasing the state of the highest allele until the initial condition is met. If the a==b, it uses the original states to give priority, if oa==ob, randomly assigned the first to be reduced.
+    while a + b > 6: ##Keeps decreasing the state of the highest allele until the initial condition is met. If the a==b, it uses the original states to give priority, if oa==ob, reduces the two of them
       if a>b:
         a-=1
-      if b>a:
+      elif b>a:
         b-=1
-      if b==a:
+      else:
         if ob>oa:
           a-=1
         elif oa>ob:
           b-=1
         else:
-          if random.random()<0.5:
             a-=1
-          else:
             b-=1
 #      if a > oa:
 #        a-=1
@@ -119,37 +166,57 @@ def applyGdSeq(seq):
   return newseq
 
 #Calculate baseline mean
-def baseline(seq):
+def baselineStr(seq):
   total=0
   for char in seq:
     total+=charDict[char][0] + charDict[char][1]
   return total/float(len(seq))
 
+def baselineTouple(seq):
+  total=0
+  for touple in seq:
+    total+=touple[0] + touple[1]
+  return total/float(len(seq))
+
+
 def devFromBaselineModification(seq):
-  baseL=round(baseline(seq)/2.0,0)
-  newseq=""
-  for char in seq:
+#  baseL=round(baselineStr(seq)/2.0,0)
+  baseL=round(baselineTouple(seq)/2.0,0)
+#  newseq=""
+  newseq=list()
+#  for char in seq:
+  for touple in seq:
     na=1
     nb=1
-    if charDict[char][0] > baseL :
+#    if charDict[char][0] > baseL :
+    if touple[0] > baseL :
       na=2
-    elif charDict[char][0] < baseL :
+#   elif charDict[char][0] < baseL :
+    elif touple[0] < baseL :
       na=0
-    if charDict[char][1] > baseL :
+#   if charDict[char][1] > baseL :
+    if touple[1] > baseL :
       nb=2
-    elif charDict[char][1] < baseL :
+#   elif charDict[char][1] < baseL :
+    elif touple[1] < baseL :
       nb=0
-    newseq+=arrayChar[na][nb]
+#    newseq+=()arrayChar[na][nb]
+    newseq.append((na,nb))
 #    if arrayChar[na][nb] != char:
 #      print "DEBUG: %d %s %s" % (baseL,char,arrayChar[na][nb])
   return newseq
 
 def relativeFromBaselineModification(seq):
-  baseL=int(round(baseline(seq)/2.0,0))
-  newseq=""
-  for char in seq:
-    na=charDict[char][0]
-    nb=charDict[char][1]
+#   baseL=int(round(baselineStr(seq)/2.0,0))
+  baseL=int(round(baselineTouple(seq)/2.0,0))
+#  newseq=""
+  newseq=list()
+#  for char in seq:
+  for touple in seq:
+#    na=charDict[char][0]
+#    nb=charDict[char][1]
+    na=touple[0]
+    nb=touple[1]
     #A copy
     if na % baseL == 0:
       na=na/baseL
@@ -169,7 +236,8 @@ def relativeFromBaselineModification(seq):
     else:
       nb=int(math.ceil(nb/float(baseL)))
     ####Think about it here!!
-    newseq+=arrayChar[na][nb]
+#    newseq+=arrayChar[na][nb]
+    newseq.append((na,nb))
 #    if arrayChar[na][nb] != char:
 #      print "DEBUG: %d %s %s" % (baseL,char,arrayChar[na][nb])
   return newseq 
@@ -580,9 +648,10 @@ for i in xrange(len(names)):
     del seqs[i]
     del names[i]
 
-#Conversion of sequences to strings
+#Conversion of sequences to lists of touples
 for i in xrange(len(seqs)):
-  seqs[i]=seqs[i].symbols_as_string(sep="")
+  strSeq=seqs[i].symbols_as_string(sep="")
+  seqs[i]=strToTouples(strSeq)
 
 #Adding random GD a posteriori
 if args.randomGD > 0:
@@ -596,7 +665,8 @@ if args.randomGD > 0:
       print "Random duplication in a duplicated leaf, trying again"
     else:
       try:
-        seqs[i]=applyGdSeq(seqs[i])
+        seqs[i]=applyGdTouple(seqs[i])
+#        seqs[i]=applyGdSeq(seqs[i])
         doublednames.append(names[i])
       except Exception as inst:
         it-=1
@@ -607,22 +677,23 @@ if args.randomGD > 0:
     ti+=1
 
 #Recoding the states to tackle GD
+#Sequences as list of touples are the real states. Even the original-sequence option needs some recoding, since the random duplication of tips generates states not included in our model
 newseqs=list()
 if args.mod == "none":
   print "Original sequences"
   for i in xrange(len(seqs)):##Unnecessary, just for debuggin purposes
     #seqsstringSeq=seqs[i].symbols_as_string(sep="")
-    newseqs.append(seqs[i])
+    newseqs.append(touplesToStr(seqs[i]))
 elif args.mod == "max2":
   print "Sequences modified to the 9-state model"
   for i in xrange(len(seqs)):
     #stringSeq=seqs[i].symbols_as_string(sep="")
-    newseqs.append(devFromBaselineModification(seqs[i]))
+    newseqs.append(touplesToStr(devFromBaselineModification(seqs[i])))
 elif args.mod == "baseline":
   print "States relative to the baseline"
   for i in xrange(len(seqs)):
     #stringSeq=seqs[i].symbols_as_string(sep="")
-    newseqs.append(relativeFromBaselineModification(seqs[i]))
+    newseqs.append(touplesToStr(relativeFromBaselineModification(seqs[i])))
 else:
   raise Exception('Incorrect --mod option')
 seqs=newseqs
@@ -691,11 +762,13 @@ else:
   #Get labels and discard the outgroup label
   for label in labels:
     if label in doublednames:
-      label+='*'
+      label_to_print=label + "*"
+    else:
+      label_to_print=label
     date= args.a + tree.find_node_for_taxon(namespace.get_taxon(label)).distance_from_root()#Date equals the distance from the root plus a constant
-    outfile.write("\t<taxon id=\"" + label + "\">\n\t\t<date value=\"" + str(round(date,0)) + "\" direction=\"forwards\" units=\"years\"/>\n\t</taxon>\n")
-  outfile.write("<taxa/>")
-  outfile.write('\n\n<generalDataType id="cnv">\n\t<state code="@"/> <!-- Genotype: 0,0 ; Beast State: 0 -->\n\t<state code="A"/> <!-- Genotype: 0,1 ; Beast State: 1 -->\n\t<state code="B"/> <!-- Genotype: 0,2 ; Beast State: 2 -->\n\t<state code="C"/> <!-- Genotype: 0,3 ; Beast State: 3 -->\n\t<state code="D"/> <!-- Genotype: 0,4 ; Beast State: 4 -->\n\t<state code="E"/> <!-- Genotype: 0,5 ; Beast State: 5 -->\n\t<state code="F"/> <!-- Genotype: 0,6 ; Beast State: 6 -->\n\t<state code="G"/> <!-- Genotype: 1,0 ; Beast State: 7 -->\n\t<state code="H"/> <!-- Genotype: 1,1 ; Beast State: 8 -->\n\t<state code="I"/> <!-- Genotype: 1,2 ; Beast State: 9 -->\n\t<state code="J"/> <!-- Genotype: 1,3 ; Beast State: 10 -->\n\t<state code="K"/> <!-- Genotype: 1,4 ; Beast State: 11 -->\n\t<state code="L"/> <!-- Genotype: 1,5 ; Beast State: 12 -->\n\t<state code="M"/> <!-- Genotype: 2,0 ; Beast State: 13 -->\n\t<state code="N"/> <!-- Genotype: 2,1 ; Beast State: 14 -->\n\t<state code="O"/> <!-- Genotype: 2,2 ; Beast State: 15 -->\n\t<state code="P"/> <!-- Genotype: 2,3 ; Beast State: 16 -->\n\t<state code="Q"/> <!-- Genotype: 2,4 ; Beast State: 17 -->\n\t<state code="R"/> <!-- Genotype: 3,0 ; Beast State: 18 -->\n\t<state code="S"/> <!-- Genotype: 3,1 ; Beast State: 19 -->\n\t<state code="T"/> <!-- Genotype: 3,2 ; Beast State: 20 -->\n\t<state code="U"/> <!-- Genotype: 3,3 ; Beast State: 21 -->\n\t<state code="V"/> <!-- Genotype: 4,0 ; Beast State: 22 -->\n\t<state code="W"/> <!-- Genotype: 4,1 ; Beast State: 23 -->\n\t<state code="X"/> <!-- Genotype: 4,2 ; Beast State: 24 -->\n\t<state code="Y"/> <!-- Genotype: 5,0 ; Beast State: 25 -->\n\t<state code="Z"/> <!-- Genotype: 5,1 ; Beast State: 26 -->\n\t<state code="["/> <!-- Genotype: 6,0 ; Beast State: 27 -->\n\t<ambiguity code="-" states="@ABCDEFGHIJKLMNOPQRSTUVWXYZ["/>\n\t<ambiguity code="?" states="@ABCDEFGHIJKLMNOPQRSTUVWXYZ["/>\n</generalDataType\>\n')
+    outfile.write("\t<taxon id=\"" + label_to_print + "\">\n\t\t<date value=\"" + str(round(date,0)) + "\" direction=\"forwards\" units=\"years\"/>\n\t</taxon>\n")
+  outfile.write("</taxa>")
+  outfile.write('\n\n<generalDataType id="cnv">\n\t<state code="@"/> <!-- Genotype: 0,0 ; Beast State: 0 -->\n\t<state code="A"/> <!-- Genotype: 0,1 ; Beast State: 1 -->\n\t<state code="B"/> <!-- Genotype: 0,2 ; Beast State: 2 -->\n\t<state code="C"/> <!-- Genotype: 0,3 ; Beast State: 3 -->\n\t<state code="D"/> <!-- Genotype: 0,4 ; Beast State: 4 -->\n\t<state code="E"/> <!-- Genotype: 0,5 ; Beast State: 5 -->\n\t<state code="F"/> <!-- Genotype: 0,6 ; Beast State: 6 -->\n\t<state code="G"/> <!-- Genotype: 1,0 ; Beast State: 7 -->\n\t<state code="H"/> <!-- Genotype: 1,1 ; Beast State: 8 -->\n\t<state code="I"/> <!-- Genotype: 1,2 ; Beast State: 9 -->\n\t<state code="J"/> <!-- Genotype: 1,3 ; Beast State: 10 -->\n\t<state code="K"/> <!-- Genotype: 1,4 ; Beast State: 11 -->\n\t<state code="L"/> <!-- Genotype: 1,5 ; Beast State: 12 -->\n\t<state code="M"/> <!-- Genotype: 2,0 ; Beast State: 13 -->\n\t<state code="N"/> <!-- Genotype: 2,1 ; Beast State: 14 -->\n\t<state code="O"/> <!-- Genotype: 2,2 ; Beast State: 15 -->\n\t<state code="P"/> <!-- Genotype: 2,3 ; Beast State: 16 -->\n\t<state code="Q"/> <!-- Genotype: 2,4 ; Beast State: 17 -->\n\t<state code="R"/> <!-- Genotype: 3,0 ; Beast State: 18 -->\n\t<state code="S"/> <!-- Genotype: 3,1 ; Beast State: 19 -->\n\t<state code="T"/> <!-- Genotype: 3,2 ; Beast State: 20 -->\n\t<state code="U"/> <!-- Genotype: 3,3 ; Beast State: 21 -->\n\t<state code="V"/> <!-- Genotype: 4,0 ; Beast State: 22 -->\n\t<state code="W"/> <!-- Genotype: 4,1 ; Beast State: 23 -->\n\t<state code="X"/> <!-- Genotype: 4,2 ; Beast State: 24 -->\n\t<state code="Y"/> <!-- Genotype: 5,0 ; Beast State: 25 -->\n\t<state code="Z"/> <!-- Genotype: 5,1 ; Beast State: 26 -->\n\t<state code="["/> <!-- Genotype: 6,0 ; Beast State: 27 -->\n\t<ambiguity code="-" states="@ABCDEFGHIJKLMNOPQRSTUVWXYZ["/>\n\t<ambiguity code="?" states="@ABCDEFGHIJKLMNOPQRSTUVWXYZ["/>\n</generalDataType>\n')
   beast_outname=os.path.basename(args.o)
   beast_outname=re.sub(".temp","",beast_outname)
   outfile.write("<alignment id=\"alignment\">\n\t<dataType idref=\"cnv\"/>\n")
@@ -706,7 +779,7 @@ for name,seq in zip(names,newseqs):
   if args.xml==False:
     outline = "\t\t" + name + "\t" + seq + "\n"
   else:
-    outline = "\t<sequence>\n\t\t<taxon idref=\"" + name + "\"/>\n\t\t" + seq + "\n\t<sequence/>\n"
+    outline = "\t<sequence>\n\t\t<taxon idref=\"" + name + "\"/>\n\t\t" + seq + "\n\t</sequence>\n"
   outfile.write(outline)
 
 if args.xml==False:
