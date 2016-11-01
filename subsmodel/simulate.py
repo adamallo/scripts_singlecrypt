@@ -250,6 +250,15 @@ def drawtime(prob):
   tyme = -math.log(u)/prob
   return tyme
 
+#draw an exponential waiting time with an exponentially growing rate
+def drawtimeExp(prob,growthRate,initTime):
+  if prob == 0.0 or growthRate == 0.0:
+    return failnum
+  u = random.random()
+  absoluteTime = math.log(-math.log(u)/prob * growthRate + math.exp(growthRate * initTime))/growthRate
+#  print "DEBUG: normal WGD time would be %f, but with the exponential growth rate it is %f\n" % (-math.log(u)/prob,absoluteTime-initTime)
+  return absoluteTime - initTime
+
 # one contender in the "horserace"; knows its outcome if chosen
 
 class Horse:
@@ -500,10 +509,10 @@ def gendouble(curstate):
 # seq is the parental sequence
 # alreadydoubled indicates whether the parent had a genome
 # duplication already (in which case no more can occur).
-def simbranchinseq(brlen,seq,alreadydoubled):
+def simbranchinseq(brlen,seq,alreadydoubled,initTime):
   wasdoubled = alreadydoubled
   if not alreadydoubled and pGD>0.0:
-    gdtime = drawtime(pGD)
+    gdtime = drawtimeExp(pGD,gGD,initTime) ###Working here, I need to keep accumulating branchlenghts to know the initTime
   else:
     gdtime = bigtime
   if gdtime < brlen:   # genome doubling happens
@@ -528,6 +537,8 @@ def simbranchinseq_segment(endtime,seq):
 
 def simseqtree(numloci,tree):
   root_states=[ab]*numloci
+  tree.calc_node_root_distances(return_leaf_distances_only=False)
+  initTime=0.0
   for edge in tree.preorder_edge_iter():
     node=edge.head_node
     if not hasattr(node, "sequence"):
@@ -542,7 +553,9 @@ def simseqtree(numloci,tree):
       #mutation_rate = getattr(edge, self.edge_rate_attr, None) or self.mutation_rate
       assert hasattr(par, "doubled")
       wasdoubled = getattr(par, "doubled")
-      (newseq,wasdoubled) = simbranchinseq(length,par_seq,wasdoubled)
+      initTime=getattr(par,"root_distance")
+#      print "DEBUG: branch start %f, branchlength %f\n" %(initTime,length)
+      (newseq,wasdoubled) = simbranchinseq(length,par_seq,wasdoubled,initTime)
       setattr(node, "doubled", wasdoubled)
       seq_list.append(newseq)
     else:
@@ -595,7 +608,8 @@ parser = argparse.ArgumentParser(description="Simulates evolution down a tree in
 parser.add_argument("-c",type=float,default=0,required=True,help="Conversion rate")
 parser.add_argument("-d",type=float,default=0,required=True,help="Loss rate")
 parser.add_argument("-g",type=float,default=0,required=True,help="Gain rate")
-parser.add_argument("-gd",type=float,default=0,required=True,help="Whole genome duplication rate")
+parser.add_argument("-pgd",type=float,default=0,required=True,help="Whole genome duplication rate")
+parser.add_argument("-ggd",type=float,default=0,required=True,help="Exponential growth rate of the whole genome duplication rate")
 parser.add_argument("-i",type=str,default="infile.tree",required=True,help="Input Newick tree file")
 parser.add_argument("-o",type=str,default="outtree.nex",required=False,help="Output nexus file")
 parser.add_argument("-n",type=int,default=1,required=True,help="Number of loci")
@@ -607,6 +621,8 @@ parser.add_argument("--ngen",type=int,default=100000000,required=False,help="Num
 parser.add_argument("--period",type=int,default=10000,required=False,help="Sampling period for the MCMC chain")
 parser.add_argument("-a",type=float,default=40,required=False,help="Assumed age of the patient when the cenancestor arose")
 parser.add_argument("--mod",type=str,default="none",required=False,help="Modification of the sequences. So far we implemented, none: no modification, baseline: relative to the baseline, max2: 9 states, with a maximum of 2 copies per cromosome")
+parser.add_argument("--exp",action="store_true",help="Coalescent model with exponential growth")
+parser.set_defaults(exp=False)
 args = parser.parse_args()
 
 #Reclycing variables
@@ -615,7 +631,8 @@ d = args.d
 g = args.g
 numloci = args.n
 
-pGD = args.gd # probability of genome doubling per unit time
+pGD = args.pgd # probability of genome doubling per unit time
+gGD = args.ggd # exponential growth rate of the genome doubling rate
 
 #Random init
 random.seed(args.seed)
@@ -796,8 +813,7 @@ else:
 <patterns id="patterns" from="1" strip="false">
 	<alignment idref="alignment"/>
 </patterns>
--->
-
+-->''' + ('''
 <!-- A prior assumption that the population size has remained constant       -->
 <!-- throughout the time spanned by the genealogy.                           -->
 <constantSize id="constant" units="years">
@@ -805,11 +821,20 @@ else:
 		<parameter id="constant.popSize" value="1" lower="0.0"/>
 	</populationSize>
 </constantSize>
-
+''','''
+<exponentialGrowth id="exponential" units="years">
+        <populationSize>
+                <parameter id="exponential.popSize" value="1" lower="0.0"/>
+        </populationSize>
+        <growthRate>
+                <parameter id="exponential.growthRate" value="3.0E-4"/>
+        </growthRate>
+</exponentialGrowth>
+''')[args.exp==True] + '''
 <!-- Generate a random starting tree under the coalescent process            -->
 <coalescentSimulator id="startingTree">
 	<taxa idref="taxa"/>
-	<constantSize idref="constant"/>
+	''' + ('''<constantSize idref="constant"/>''','''<exponentialGrowth idref="exponential"/>''')[args.exp==True] +'''
 </coalescentSimulator>
 
 <!-- Generate a tree model                                  -->
@@ -829,7 +854,7 @@ else:
 <!-- Generate a coalescent likelihood                                        -->
 <coalescentLikelihood id="coalescent">
 	<model>
-		<constantSize idref="constant"/>
+		''' +('''<constantSize idref="constant"/>''','''<exponentialGrowth idref="exponential"/>''')[args.exp==True] + '''
 	</model>
 	<populationTree>
 		<treeModel idref="treeModel"/>
@@ -918,11 +943,19 @@ else:
 	<scaleOperator scaleFactor="0.2" weight="1.0"> <!-- We operate the branch since it is relative to the root. Operating luca_height is error prone, since it depends on the root -->
                 <parameter idref="luca_branch"/>
         </scaleOperator>
-
+''' + ('''
 	<scaleOperator scaleFactor="0.5" weight="3.0">
 		<parameter idref="constant.popSize"/>
 	</scaleOperator>
+''','''
+	<scaleOperator scaleFactor="0.75" weight="3">
+                <parameter idref="exponential.popSize"/>
+        </scaleOperator>
 
+        <randomWalkOperator windowSize="1.0" weight="3">
+                <parameter idref="exponential.growthRate"/>
+        </randomWalkOperator>
+''')[args.exp==True] + '''
         <upDownOperator scaleFactor="0.75" weight="5.0">
                 <up>
                         <parameter idref="clock.rate"/>
@@ -938,25 +971,38 @@ else:
 <mcmc id="mcmc" chainLength="''' + str(args.ngen) + '''" autoOptimize="true" operatorAnalysis="''' + beast_outname + '''.ops">
 	<posterior id="posterior">
 		<prior id="prior">
-                        <coalescentLikelihood idref="coalescent"/>
+                        <coalescentLikelihood idref="coalescent"/>''' + ('''
 			<oneOnXPrior>
 				<parameter idref="constant.popSize"/>
-			</oneOnXPrior>
-
+			</oneOnXPrior>''','''
+			<oneOnXPrior>
+                                <parameter idref="exponential.popSize"/>
+                        </oneOnXPrior>
+                        <exponentialPrior mean="0.01" offset="0.0">
+                                <parameter idref="exponential.growthRate"/>
+                        </exponentialPrior>
+''')[args.exp==True] + '''
+		
 			<!-- Clock (gain) Rate Prior. More than 50 SGAs/breakpoint/year seems an unreasonable enough value to use as upper bound-->
+			<!-- 
 			<uniformPrior lower="0.0" upper="50">
 				<parameter idref="clock.rate"/>
 			</uniformPrior>
-			
-			<!-- Loss and conversion (relative to gain) rate priors. More than 5 times quicker than gain seems unreasonable enough to be used as upper bound-->
-			<uniformPrior lower="0.0" upper="5">
-				<parameter idref="cnv.loss"/>
-			</uniformPrior>
-			<uniformPrior lower="0.0" upper="5">
-				<parameter idref="cnv.conversion"/>
-			</uniformPrior>
+			-->
+			<!-- Clock (gain) Rate Prior. -->
+			<logNormalPrior mean="-4.0" stdev="2.5" offset="0.0" meanInRealSpace="false">
+                        	<parameter idref="clock.rate"/>
+                        </logNormalPrior>
 
-                        <!-- Cenancestor Prior on the height, since it is easier to have a meaningfull prior on it (time of the initial development of the BE fragment) -->
+			<!-- Loss and conversion (relative to gain) rate priors-->
+			<exponentialPrior mean="1.0" offset="0.0">
+				<parameter idref="cnv.loss"/>
+			</exponentialPrior>
+			<exponentialPrior mean="1.0" offset="0.0">
+				<parameter idref="cnv.conversion"/>
+			</exponentialPrior>
+
+                        <!-- Cenancestor Prior on the height, since it is easier to have a meaningful prior on it (time of the initial development of the BE fragment) -->
                         <uniformPrior lower="''' + str(diff_date) + '''" upper="''' + str(max_date) + '''">
                         	<parameter idref="luca_height"/>
                         </uniformPrior>
@@ -1010,8 +1056,10 @@ else:
 		<parameter idref="cnv.conversion"/>
 		<parameter idref="treeModel.rootHeight"/>
 		<parameter idref="luca_height"/>
-		<parameter idref="luca_branch"/>
-		<parameter idref="constant.popSize"/>
+		<parameter idref="luca_branch"/>''' + ('''
+		<parameter idref="constant.popSize"/>''','''
+		<parameter idref="exponential.popSize"/>
+                <parameter idref="exponential.growthRate"/>''')[args.exp==True] + '''
 		<parameter idref="clock.rate"/>
 		<cenancestorTreeLikelihood idref="treeLikelihood"/>
 		<coalescentLikelihood idref="coalescent"/>
