@@ -4,6 +4,8 @@ use strict;
 use warnings;
 use Time::Piece;
 use Time::Seconds;
+use List::Util qw(sum);
+use POSIX qw(floor ceil);
 
 our $max_n_copies=6;##So far I am considering until 6 copies per allele. We could modify this to only consider the maximum actual number. Important if we would create the substitution model accordingly.
 our $period_log=10000;
@@ -18,6 +20,148 @@ sub GenToAscii
 		$tot_a+=$max_n_copies-$i+2;
 	}
 	return chr($tot_a+$B+64);#Ascii
+}
+
+sub correctBaseline
+{
+	my ($A,$B)=@_;
+	my $nLoci=scalar @{${$A}[0]};
+	my $nSamples=scalar @{$A};
+#	print("DEBUG: $nLoci, $nSamples\n");
+	for (my $sample=0;$sample<$nSamples;++$sample)
+	{
+		my @temp=(@{${$A}[$sample]},@{${$B}[$sample]});
+		my $estBaseline=sum(@temp)/@temp;
+		my $intBaseline=int($estBaseline + 0.5); #Round 
+#		print("DEBUG: $estBaseline, $intBaseline\n");
+		if ($intBaseline > 1)
+		{
+			print("Sample $sample has estimated integer baseline $intBaseline\n");
+		}
+		for (my $locus=0;$locus<$nLoci;++$locus)
+		{
+#			print("DEBUG: sample $sample, locus $locus, ${${$A}[$sample]}[$locus], $intBaseline\n");
+			if (${${$A}[$sample]}[$locus] % $intBaseline == 0) ##
+			{
+				${${$A}[$sample]}[$locus]/=$intBaseline;
+			}
+			elsif(rand() <0.5)
+			{
+				${${$A}[$sample]}[$locus]=floor(${${$A}[$sample]}[$locus]/$intBaseline);
+			}
+			else
+			{
+				${${$A}[$sample]}[$locus]=ceil(${${$A}[$sample]}[$locus]/$intBaseline);
+			}
+			if (${${$B}[$sample]}[$locus] % $intBaseline == 0) ##
+                        {
+                                ${${$B}[$sample]}[$locus]/=$intBaseline;
+                        }
+                        elsif(rand() <0.5)
+                        {
+                                ${${$B}[$sample]}[$locus]=floor(${${$B}[$sample]}[$locus]/$intBaseline);
+                        }
+                        else
+                        {
+                                ${${$B}[$sample]}[$locus]=ceil(${${$B}[$sample]}[$locus]/$intBaseline);
+                        }
+
+		}
+	}
+}
+
+sub limitToModel
+{
+	my($A,$B)=@_;
+	my $nLoci=scalar @{${$A}[0]};
+        my $nSamples=scalar @{$A};
+	my $temp_a=1;
+	my $temp_b=1;
+	for (my $sample=0;$sample<$nSamples;++$sample)
+        {
+		for (my $locus=0;$locus<$nLoci;++$locus)
+		{
+		        if(${${$A}[$sample]}[$locus]+${${$B}[$sample]}[$locus] > $max_n_copies) ##We need to truncate the values
+	                {
+	                        if(${${$A}[$sample]}[$locus] == ${${$B}[$sample]}[$locus]) ##Both are equal, we set the maximum value
+	                        {
+	                                $temp_a=$max_n_copies/2;
+	                                $temp_b=$max_n_copies/2;
+	                        }
+	                        else #Not really needed. Here we truncate alleles if they are higher than the maximum by theirselves
+	                        {
+	                                $temp_a=(${${$A}[$sample]}[$locus] > $max_n_copies ? $max_n_copies : ${${$A}[$sample]}[$locus]);
+	                                $temp_b=(${${$B}[$sample]}[$locus] > $max_n_copies ? $max_n_copies : ${${$B}[$sample]}[$locus]);
+	                        }
+	                        while($temp_a+$temp_b>$max_n_copies) ##Truncate the one that has more. If they have the same, the one that had originally less
+	                        {
+	                                if($temp_a>$temp_b)
+	                                {
+	                                        $temp_a-=1;
+	                                }
+	                                elsif($temp_b>$temp_a)
+	                                {
+	                                        $temp_b-=1;
+	                                }
+	                                else
+	                                {
+	                                        if(${${$A}[$sample]}[$locus]<${${$B}[$sample]}[$locus])
+	                                        {
+	                                                $temp_a-=1;
+	                                        }
+	                                        else
+	                                        {
+	                                                $temp_b-=1;
+	                                        }
+	                                }
+	                        }
+	                        print("WARNING: Segment with states ${${$A}[$sample]}[$locus],${${$B}[$sample]}[$locus], while the maximum state is $max_n_copies. The output state will be $temp_a,$temp_b\n");
+	                        ${${$A}[$sample]}[$locus]=$temp_a;
+	                        ${${$B}[$sample]}[$locus]=$temp_b;
+	                }
+		}
+        }
+
+}
+
+sub eliminateInvariableWildTypes
+{
+	my($A,$B)=@_;
+        my $nLoci=scalar @{${$A}[0]};
+        my $nSamples=scalar @{$A};
+	my @tokeep;
+	for (my $locus=0;$locus<$nLoci;++$locus)
+	{
+		my $variable=0;
+#		print("DEBUG: locus $locus: ");
+        	for (my $sample=0;$sample<$nSamples;++$sample)
+        	{
+#			print("${${$A}[$sample]}[$locus],${${$B}[$sample]}[$locus] ");
+			if(${${$A}[$sample]}[$locus] != 1 || ${${$B}[$sample]}[$locus] != 1)
+			{
+				$variable=1;
+				last;
+			}
+			
+		}
+		if ($variable == 1)
+		{
+#			print(" --> variable\n");
+			push(@tokeep,$locus);
+		}
+#		else
+#		{
+#			print("\n");
+#		}
+	}
+	for (my $sample=0;$sample<$nSamples;++$sample)
+	{
+#		print("DEBUG: tokeep @tokeep\n");
+		my @tempA=@{${$A}[$sample]}[@tokeep];
+		${$A}[$sample]=\@tempA;
+		my @tempB=@{${$B}[$sample]}[@tokeep];
+		${$B}[$sample]=\@tempB;
+	}
 }
 
 (scalar(@ARGV) >0 && scalar(@ARGV) < 3)  or die "Usage: script input_directory [format(nexus,xml,human)]";
@@ -102,7 +246,7 @@ for my $filea (@files)
 	my $temp_b;
 	print("Working in $id, fileA $filea file B $fileb, n_loci= ",scalar(@a_cont)-1 ,", ",scalar(@b_cont)-1,"\n");
 
-	for(my $i=0;$i<(scalar(@a_cont)-1);++$i)
+	for(my $i=0;$i<(scalar(@a_cont)-1);++$i) ###Locus
 	{
 		@a_gens=split("\t",$a_cont[$i+1]);
 		@b_gens=split("\t",$b_cont[$i+1]);
@@ -110,59 +254,18 @@ for my $filea (@files)
 		chomp(@b_gens);
 		splice(@a_gens,0,5);#Keeping only the genotypes
 		splice(@b_gens,0,5);
+
 		#print("DEBUG: line $i ",scalar @a_gens," ",scalar @b_gens," ",scalar @samples," ", scalar @samplesB,"\n");
-		for(my $j=0; $j<scalar(@samples); ++$j)
+		for(my $j=0; $j<scalar(@samples); ++$j) ###Sample
 		{
-			if($a_gens[$j]+$b_gens[$j] > $max_n_copies)
-			{
-				if($a_gens[$j] == $b_gens[$j])
-				{
-					$temp_a=$max_n_copies/2;
-					$temp_b=$max_n_copies/2;
-				}
-				else
-				{
-					$temp_a=($a_gens[$j] > $max_n_copies ? $max_n_copies : $a_gens[$j]);
-					$temp_b=($b_gens[$j] > $max_n_copies ? $max_n_copies : $b_gens[$j]);
-				}
-				my $last_modified=0;
-				while($temp_a+$temp_b>$max_n_copies)
-				{
-					if($temp_a>$temp_b)
-					{
-						$temp_a-=1;
-						$last_modified=0;
-					}
-					elsif($temp_b>$temp_a)
-					{
-						$temp_b-=1;
-						$last_modified=1;
-					}
-					else
-					{
-						if($last_modified==0)
-						{
-							$temp_b-=1;
-							$last_modified=1;
-						}
-						else
-						{
-							$temp_a-=1;
-							$last_modified=0;
-						}
-					}
-				}
-				print("WARNING: The files $filea and $fileb code for a segment with states $a_gens[$j],$b_gens[$j] in the sample $samples[$j], locus $i, while the maximum state is $max_n_copies. The output state will be $temp_a,$temp_b\n");
-				$dataA[$j][$i]=$temp_a;
-				$dataB[$j][$i]=$temp_b;
-			}	
-			else
-			{
-				$dataA[$j][$i]=$a_gens[$j];
-				$dataB[$j][$i]=$b_gens[$j];
-			}
+			$dataA[$j][$i]=$a_gens[$j];
+			$dataB[$j][$i]=$b_gens[$j];
 		}
 	}
+
+	correctBaseline(\@dataA,\@dataB);
+	limitToModel(\@dataA,\@dataB);
+	eliminateInvariableWildTypes(\@dataA,\@dataB);
 
 	##Timestamp hash
 	my %times;
@@ -176,7 +279,7 @@ for my $filea (@files)
 	my $OUTFILE;
 	my $outname=$filea;
 	my $n_samples=scalar(@samples);
-	my $n_char=scalar(@a_cont)-1;
+	my $n_char=scalar(@{$dataA[0]});
 	my $max_date;
 	my $min_date;
 	
@@ -280,10 +383,12 @@ for my $filea (@files)
                 print $OUTFILE "\n</alignment>\n";
 		my $diff_date=$max_date-$min_date;
 		my $text = qq{
-	<patterns id="patterns" from="1" strip="false">
-		<alignment idref="alignment"/>
-	</patterns>
-
+	
+	<ascertainedCharacterPatterns id="patterns">
+	        <alignment idref="alignment"/>
+	        <state code='H'/>
+	</ascertainedCharacterPatterns>	
+	
 	<!-- A prior assumption that the population size has remained constant       -->
 	<!-- throughout the time spanned by the genealogy.                           -->
 	<constantSize id="constant" units="years">
@@ -428,19 +533,19 @@ for my $filea (@files)
 				<oneOnXPrior>
 					<parameter idref="constant.popSize"/>
 				</oneOnXPrior>
-
-				<!-- Clock (gain) Rate Prior. More than 50 SGAs/breakpoint/year seems an unreasonable enough value to use as upper bound-->
-				<uniformPrior lower="0.0" upper="50">
-					<parameter idref="clock.rate"/>
-				</uniformPrior>
-				
-				<!-- Loss and conversion (relative to gain) rate priors. More than 5 times quicker than gain seems unreasonable enough to be used as upper bound-->
-				<uniformPrior lower="0.0" upper="5">
-					<parameter idref="cnv.loss"/>
-				</uniformPrior>
-				<uniformPrior lower="0.0" upper="5">
-					<parameter idref="cnv.conversion"/>
-				</uniformPrior>
+	                        
+				<!-- Clock (gain) Rate Prior. -->
+	                        <logNormalPrior mean="-4.0" stdev="2.5" offset="0.0" meanInRealSpace="false">
+	                                <parameter idref="clock.rate"/>
+	                        </logNormalPrior>
+	
+	                        <!-- Loss and conversion (relative to gain) rate priors-->
+	                        <exponentialPrior mean="1.0" offset="0.0">
+	                                <parameter idref="cnv.loss"/>
+	                        </exponentialPrior>
+	                        <exponentialPrior mean="1.0" offset="0.0">
+	                                <parameter idref="cnv.conversion"/>
+	                        </exponentialPrior>
 
                                 <!-- Cenancestor Prior on the height, since it is easier to have a meaningfull prior on it (time of the initial development of the BE fragment) -->
                                 <uniformPrior lower="$diff_date" upper="$max_date">
