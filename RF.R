@@ -21,7 +21,8 @@ for (i in 1:length(trees)){
     gd=sub(x=trees[i],pattern="tree.*\\_r.*\\_gd(.*)\\_mod.*\\_MCC.trees","\\1")
     mod=sub(x=trees[i],pattern="tree.*\\_r.*\\_gd.*\\_mod(.*)\\_MCC.trees","\\1")
     ttree=drop.tip(ttrees[[replicate+1]],"outgroup")
-    dist=RF.dist(ttree, ptree, check.labels = TRUE,rooted=TRUE)/((ttree$Nnode+1)*2-6) ##s_tree$Nnode= Number of internal nodes. This tree is rooted, so internal nodes+1 = n_leaves. 2*(n-3) = number of internal branches/bipartitions in an unrooted tree * 2.
+    dist=RF.dist(ttree,ptree,check.labels=TRUE,rooted=TRUE,normalize=TRUE)
+    #dist=RF.dist(ttree, ptree, check.labels = TRUE,rooted=TRUE)/((ttree$Nnode+1)*2-6) ##s_tree$Nnode= Number of internal nodes. This tree is rooted, so internal nodes+1 = n_leaves. 2*(n-3) = number of internal branches/bipartitions in an unrooted tree * 2.
     final_data[nrow(final_data)+1,]=c(replicate,rate,gd,mod,dist)
 }
 
