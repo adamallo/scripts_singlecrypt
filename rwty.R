@@ -1,6 +1,7 @@
 library(rwty)
 library(RcmdrPlugin.KMggplot2)
 library(cowplot)
+library(methods)
 
 rwty.processors=1
 
@@ -9,14 +10,16 @@ burnin_p=5
 args <- commandArgs(trailingOnly = TRUE)
 
 if (length(args) !=1) {
-        print("Usage: script directory")
-        q()
+  print("Usage: script directory")
+  q()
 }
 
 setwd(args[1])
 my.trees=load.multi(path=".",format = "beast")
 burnin=round(length(my.trees[[1]]$trees)*burnin_p/100)
 results=analyze.rwty(my.trees,burnin=burnin,fill.color='likelihood')
+results$pseudo.ess(my.trees,burnin=burnin) #Default number of replicates, 20
+results$pairsb=makeplot.pairs(my.trees,burnin=burnin,params=c("posterior","likelihood","clock.rate","treeModel.rootHeight","luca_height","constant.popSize","cnv.conversion","cnv.loss"))
 save(results,file="results.Rdata")
 
 printplot = function(obj,file="out.pdf") {
