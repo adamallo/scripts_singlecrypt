@@ -1,5 +1,10 @@
 library(rwty)
+library(RcmdrPlugin.KMggplot2)
 library(cowplot)
+
+rwty.processors=1
+
+burnin_p=5
 
 args <- commandArgs(trailingOnly = TRUE)
 
@@ -9,15 +14,33 @@ if (length(args) !=1) {
 }
 
 setwd(args[1])
-my.trees=load.multi(".",ext.tree="trees",ext.p="log")
-results=analyze.rwty(my.trees,burnin=500,fill.color='likelihood')
+my.trees=load.multi(path=".",format = "beast")
+burnin=round(length(my.trees[[1]]$trees)*burnin_p/100)
+results=analyze.rwty(my.trees,burnin=burnin,fill.color='likelihood')
 save(results,file="results.Rdata")
 
+printplot = function(obj,file="out.pdf") {
+  require(cowplot)
+  require(RcmdrPlugin.KMggplot2)
+  if(is(obj,"gg")) {
+    save_plot(file,obj,base_height=12,base_aspect_ratio=1.4)
+  } else if (is(obj,"recordedplot")) {
+    ggsaveKmg2(filename = file, plot = obj,height=12,width = 12*1.4)
+  } else if (is(obj,"citation")) {
+    #We don't need to print this
+  } else {
+    stop(paste0("Unsuported class", class(obj)))
+  }
+}
 
-for(name in names(results)) { 
-	tryCatch({
-					save_plot(paste0(name,".pdf"),results[[name]],base_height=12,base_aspect_ratio=1.4)
-				},error=function(e){
-					save_plot(paste0(name,".pdf"),results[[name]][[1]],base_height=12,base_aspect_ratio=1.4)
-			})
-	}
+for(name in names(results)) {
+  if (is(results[[name]],"list")) {
+    for (subname in names(results[[name]]))
+    {
+      printplot(results[[name]][[subname]],paste0(paste(name,subname,sep="_"),".pdf"))
+    }
+  }
+  else {
+    printplot(results[[name]],paste0(name,".pdf"))
+  }
+}
