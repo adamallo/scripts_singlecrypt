@@ -4,17 +4,19 @@ library(cowplot)
 library(methods)
 
 rwty.processors=1
-
 burnin_p=5
 
 args <- commandArgs(trailingOnly = TRUE)
 
-if (length(args) !=1) {
-  print("Usage: script directory")
+if (length(args) !=3) {
+  print("Usage: script directory burnin_proportion n_cores")
   q()
 }
 
 setwd(args[1])
+burnin_p=args[2]
+rwty.processors=args[3]
+
 my.trees=load.multi(path=".",format = "beast")
 burnin=round(length(my.trees[[1]]$trees)*burnin_p/100)
 results=analyze.rwty(my.trees,burnin=burnin,fill.color='likelihood',params=c("posterior","likelihood","clock.rate","treeModel.rootHeight","luca_height","constant.popSize","cnv.conversion","cnv.loss"),)
