@@ -9,3 +9,9 @@ for i in *phased*; do sbatch -c 3 Rscript.sbatch ../../../../scripts_singlecrypt
 
 ##Incompleted runs with dump_states
 for i in *.xml ; do name=$(head $i | tail -n 1 | sed 's/<.*\"\(.*\)\">/\1/g');file=$(grep -l $name * | tail -n1);echo sbatch beast.sbatch -seed 25 -dump_every 10000000 -load_dump $file $i;done
+
+##Putting incompleted runs together
+for i in 500m/r1*
+do
+    ./scripts_singlecrypt/merge_incomplete_beast_runs.sh $i
+done
