@@ -18,35 +18,6 @@ failnum = -1.0
 bigtime = 10000000.0
 maxit=1000
 
-#null = 0
-#a = 7
-#b = 1
-#aa = 13
-#ab = 8
-#bb = 2
-#aaa = 18
-#aab = 14
-#abb = 9
-#bbb = 3
-#aaaa = 22
-#aaab = 19
-#aabb = 15
-#abbb = 10
-#bbbb = 4
-#aaaaa = 25
-#aaaab = 23
-#aaabb = 20
-#aabbb = 16
-#abbbb = 11
-#bbbbb = 5
-#aaaaaa = 27
-#aaaaab = 26
-#aaaabb = 24
-#aaabbb = 21
-#aabbbb = 17
-#abbbbb = 12
-#bbbbbb = 6
-
 null='@'
 b='A'
 bb='B'
@@ -74,7 +45,7 @@ aaaab='W'
 aaaabb='X'
 aaaaa='Y'
 aaaaab='Z'
-aaaaaa='['
+aaaaaa='[' 
 
 charDict={'@':(0,0),'A':(0,1),'B':(0,2),'C':(0,3),'D':(0,4),'E':(0,5),'F':(0,6),'G':(1,0),'H':(1,1),'I':(1,2),'J':(1,3),'K':(1,4),'L':(1,5),'M':(2,0),'N':(2,1),'O':(2,2),'P':(2,3),'Q':(2,4),'R':(3,0),'S':(3,1),'T':(3,2),'U':(3,3),'V':(4,0),'W':(4,1),'X':(4,2),'Y':(5,0),'Z':(5,1),'[':(6,0)}
 
@@ -83,6 +54,138 @@ arrayChar=(('@','A','B','C','D','E','F'),('G','H','I','J','K','L'),('M','N','O',
 ##FUNCTIONS
 ##########
 
+##Obtains the scaling factor (beta) to scale the branches given in expected substitutions per site, instead of scaling the whole subsmatrix
+def getScalingFactor():
+  
+  numstates=28
+
+  #Hardcoded indexes!
+  iin = 0
+  ia = 7
+  ib = 1
+  iaa = 13
+  iab = 8
+  ibb = 2
+  iaaa = 18
+  iaab = 14
+  iabb = 9
+  ibbb = 3
+  iaaaa = 22
+  iaaab = 19
+  iaabb = 15
+  iabbb = 10
+  ibbbb = 4
+  iaaaaa = 25
+  iaaaab = 23
+  iaaabb = 20
+  iaabbb = 16
+  iabbbb = 11
+  ibbbbb = 5
+  iaaaaaa = 27
+  iaaaaab = 26
+  iaaaabb = 24
+  iaaabbb = 21
+  iaabbbb = 17
+  iabbbbb = 12
+  ibbbbbb = 6
+
+  r=[[0.0 for x in xrange(numstates) ] for y in xrange(numstates)]
+
+  #naked A goes to AA, null
+  r[ia][iin] = r[ib][iin] = d
+  r[ia][iaa] = r[ib][ibb] = g
+  
+  # AA goes to A, AAA
+  r[iaa][ia] = r[ibb][ib] = 2.0*d
+  r[iaa][iaaa] = r[ibb][ibbb] = 2.0*g
+  
+  # AAA goes to AA, AAAA
+  r[iaaa][iaa] = r[ibbb][ibb] = 3.0*d
+  r[iaaa][iaaaa] = r[ibbb][ibbbb] = 3.0*g
+  
+  # AAAA goes to AAA, AAAAA
+  r[iaaaa][iaaa] = r[ibbbb][ibbb] = 4.0*d
+  r[iaaaa][iaaaaa] = r[ibbbb][ibbbbb] = 4.0*g
+  
+  # AAAAA goes to AAAA, AAAAAA
+  r[iaaaaa][iaaaa] = r[ibbbbb][ibbbb] = 5.0*d
+  r[iaaaaa][iaaaaaa] = r[ibbbbb][ibbbbbb] = 5.0*g
+  
+  # AAAAAA goes to AAAAA
+  r[iaaaaaa][iaaaaa] = r[ibbbbbb][ibbbbb] = 6.0*d
+  
+  # AB goes to AA, BB, A, B, AAB, ABB
+  r[iab][iaa] = r[iab][ibb] = c
+  r[iab][ia] = r[iab][ib] = d
+  r[iab][iaab] = r[iab][iabb] = g
+  
+  # AAB goes to AA, AB, AAA, ABB, AAAB, AABB
+  r[iaab][iaa] = r[iabb][ibb] = d
+  r[iaab][iab] = r[iabb][iab] = 2.0*d
+  r[iaab][iaaa] = r[iabb][ibbb] = c
+  r[iaab][iabb] = r[iabb][iaab] = 2.0 * 0.5 * c
+  r[iaab][iaaab] = r[iabb][iabbb] = 2.0 * g
+  r[iaab][iaabb] = r[iabb][iaabb] = g
+  
+  # AAAB goes to AAA, AAB, AAAA, AABB, AAAAB, AAABB
+  r[iaaab][iaaa] = r[iabbb][ibbb] = d
+  r[iaaab][iaab] = r[iabbb][iabb] = 3.0*d
+  r[iaaab][iaaaa] = r[iabbb][ibbbb] = c
+  r[iaaab][iaabb] = r[iabbb][iaabb] = 3.0 * 1.0/3.0 * c
+  r[iaaab][iaaaab] = r[iabbb][iabbbb] = 3.0 * g
+  r[iaaab][iaaabb] = r[iabbb][iaabbb] = g
+  
+  # AABB goes to AAB, ABB, AAAB, ABBB, AAABB, AABBB
+  r[iaabb][iaab] = r[iaabb][iabb] = 2.0 * d
+  r[iaabb][iaaab] = r[iaabb][iabbb] = 2.0 * 2.0/3.0 * c
+  r[iaabb][iaaabb] = r[iaabb][iaabbb] = 2.0 * g
+  
+  # AAAAB goes to AAAA, AAAB, AAAAA, AAABB, AAAAAB, AAAABB
+  r[iaaaab][iaaaa] = r[iabbbb][ibbbb] = d
+  r[iaaaab][iaaab] = r[iabbbb][iabbb] = 4.0 * d
+  r[iaaaab][iaaaaa] = r[iabbbb][ibbbbb] = c
+  r[iaaaab][iaaabb] = r[iabbbb][iaabbb] = 4.0 * 1.0/4.0 * c
+  r[iaaaab][iaaaaab] = r[iabbbb][iabbbbb] = 4.0 * g
+  r[iaaaab][iaaaabb] = r[iabbbb][iaabbbb] = g
+  
+  # AAABB goes to AAAB, AABB, AAAAB, AABBB, AAAABB, AAABBB
+  r[iaaabb][iaaab] = r[iaabbb][iabbb] = 2.0 * d
+  r[iaaabb][iaabb] = r[iaabbb][iaabb] = 3.0 * d
+  r[iaaabb][iaaaab] = r[iaabbb][iabbbb] = 2.0 * 3.0/4.0 * c
+  r[iaaabb][iaabbb] = r[iaabbb][iaaabb] = 3.0 * 2.0/4.0 * c
+  r[iaaabb][iaaaabb] = r[iaabbb][iaabbbb] = 3.0 * g
+  r[iaaabb][iaaabbb] = r[iaabbb][iaaabbb] = 2.0 * g
+  
+  # AAAAAB goes to AAAAA, AAAAB, AAAAAA, AAAABB
+  r[iaaaaab][iaaaaa] = r[iabbbbb][ibbbbb] = d
+  r[iaaaaab][iaaaab] = r[iabbbbb][iabbbb] = 5.0 * d
+  r[iaaaaab][iaaaaaa] = r[iabbbbb][ibbbbbb] = c
+  r[iaaaaab][iaaaabb] = r[iabbbbb][iaabbbb] = 5.0 * 1.0/5.0 * c
+  
+  # AAAABB goes to AAAAB, AAABB, AAAAAB, AAABBB
+  r[iaaaabb][iaaaab] = r[iaabbbb][iabbbb] = 2.0 * d
+  r[iaaaabb][iaaabb] = r[iaabbbb][iaabbb] = 4.0 * d
+  r[iaaaabb][iaaaaab] = r[iaabbbb][iabbbbb] = 2.0 * 4.0/5.0 * c
+  r[iaaaabb][iaaabbb] = r[iaabbbb][iaaabbb] = 4.0 * 2.0/5.0 * c
+  
+  # AAABBB goes to AAABB, AABBB, AAAABB, AABBBB
+  r[iaaabbb][iaaabb] = r[iaaabbb][iaabbb] = 3.0 * d
+  r[iaaabbb][iaaaabb] = r[iaaabbb][iaabbbb] = 3.0 * 3.0/5.0 * c
+
+  # fill in diagonals as -(sum of column)
+  for column in xrange(numstates):
+    columntot = 0.0
+    for row in xrange(numstates):
+      if row != column:
+        columntot += r[row][column]
+    r[column][column] = -columntot
+  
+  sumdiag=0.0
+  for i in xrange(numstates):
+    sumdiag+=-r[i][i]
+
+  return numstates/sumdiag ##Unweighted mean
+ 
 #Converts str sequences to lists of touples
 def strToTouples(seq):
   seqTouples=list()
@@ -509,7 +612,7 @@ def gendouble(curstate):
 # seq is the parental sequence
 # alreadydoubled indicates whether the parent had a genome
 # duplication already (in which case no more can occur).
-def simbranchinseq(brlen,seq,alreadydoubled,initTime):
+def simbranchinseq(brlen,seq,alreadydoubled,initTime,beta):
   wasdoubled = alreadydoubled
   if not alreadydoubled and pGD>0.0:
     gdtime = drawtimeExp(pGD,gGD,initTime) ###Working here, I need to keep accumulating branchlenghts to know the initTime
@@ -518,12 +621,12 @@ def simbranchinseq(brlen,seq,alreadydoubled,initTime):
   if gdtime < brlen:   # genome doubling happens
     #print "Genome Doubling!"
     wasdoubled = True
-    answers = simbranchinseq_segment(gdtime,seq)
+    answers = simbranchinseq_segment(gdtime*beta,seq) ##Beta scales the branch lengths for the mutational process since the matrix has not been scaled
     for i in xrange(len(answers)):
       answers[i] = gendouble(answers[i])
-    answers = simbranchinseq_segment(brlen - gdtime,answers)
+    answers = simbranchinseq_segment((brlen - gdtime)*beta,answers)
   else:
-    answers = simbranchinseq_segment(brlen,seq)
+    answers = simbranchinseq_segment(brlen*beta,seq)
   return (answers, wasdoubled)
     
 def simbranchinseq_segment(endtime,seq):
@@ -535,7 +638,7 @@ def simbranchinseq_segment(endtime,seq):
     answers.append(curstate)
   return answers
 
-def simseqtree(numloci,tree):
+def simseqtree(numloci,tree,beta):
   root_states=[ab]*numloci
   tree.calc_node_root_distances(return_leaf_distances_only=False)
   initTime=0.0
@@ -555,7 +658,7 @@ def simseqtree(numloci,tree):
       wasdoubled = getattr(par, "doubled")
       initTime=getattr(par,"root_distance")
 #      print "DEBUG: branch start %f, branchlength %f\n" %(initTime,length)
-      (newseq,wasdoubled) = simbranchinseq(length,par_seq,wasdoubled,initTime)
+      (newseq,wasdoubled) = simbranchinseq(length,par_seq,wasdoubled,initTime,beta)
       setattr(node, "doubled", wasdoubled)
       seq_list.append(newseq)
     else:
@@ -639,7 +742,14 @@ random.seed(args.seed)
 
 #Sequence simulation using our model along a rooted input newick tree
 tree=dendropy.Tree.get(path=args.i,rooting="force-rooted",schema="newick")
-simseqtree(numloci,tree)
+
+##Calculate the scaling factor B
+beta=getScalingFactor()
+#print(beta)
+#exit()
+
+#simseqtree(numloci,tree,beta)
+simseqtree(numloci,tree,1) ###We are not scaling the matrix since a) we are not using a common rate, b) if we did, this may generate a lot of estimation error since we would be assuming equal equilibrium frequencies, where we don't even have.
 
 #Matrix which will obtain the data still pending from the tree
 char_matrix= dendropy.StandardCharacterMatrix(taxon_namespace=tree.taxon_namespace,default_state_alphabet=None)
