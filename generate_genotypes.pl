@@ -12,8 +12,8 @@ Getopt::Long::Configure qw(gnu_getopt);
 ##Configuration variables
 #########################
 our $max_n_copies=6;##So far I am considering until 6 copies per allele. We could modify this to only consider the maximum actual number. Important if we would create the substitution model accordingly.
-our $period_log=10000;
-our $n_gen=100000000;
+our $period_log=25000;
+our $n_gen=250000000;
 
 ##ARGV variables
 ################
@@ -286,10 +286,10 @@ for my $filea (@files)
                 }
                 print $OUTFILE "\n</alignment>\n";
 		my $diff_date=$max_date-$min_date;
-		my $cnv_operators=qq{<scaleOperator scaleFactor="0.25" weight="0.5">
+		my $cnv_operators=qq{<scaleOperator scaleFactor="0.25" weight="0.25">
 			<parameter idref="cnv.loss"/>
 		</scaleOperator>
-		<scaleOperator scaleFactor="0.25" weight="0.5">
+		<scaleOperator scaleFactor="0.25" weight="0.25">
 			<parameter idref="cnv.conversion"/>
 		</scaleOperator>};
 		my $cnv_priors=qq{<!-- Loss and conversion (relative to gain) rate priors-->
