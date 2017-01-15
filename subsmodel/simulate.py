@@ -708,9 +708,10 @@ beast_outname="beast.out"
 ##############
 
 parser = argparse.ArgumentParser(description="Simulates evolution down a tree in newick format according to our SCA model. Up to 6 copies")
-parser.add_argument("-c",type=float,default=0,required=True,help="Conversion rate")
-parser.add_argument("-d",type=float,default=0,required=True,help="Loss rate")
-parser.add_argument("-g",type=float,default=0,required=True,help="Gain rate")
+parser.add_argument("-c",type=float,default=0,required=True,help="Relative conversion rate")
+parser.add_argument("-d",type=float,default=0,required=True,help="Relative loss rate")
+parser.add_argument("-g",type=float,default=0,required=True,help="Relative gain rate")
+parser.add_argument("-r",type=float,default=0,required=True,help="Mutation rate per allele and fragment")
 parser.add_argument("-pgd",type=float,default=0,required=True,help="Whole genome duplication rate")
 parser.add_argument("-ggd",type=float,default=0,required=True,help="Exponential growth rate of the whole genome duplication rate")
 parser.add_argument("-i",type=str,default="infile.tree",required=True,help="Input Newick tree file")
@@ -729,9 +730,13 @@ parser.set_defaults(exp=False)
 args = parser.parse_args()
 
 #Reclycing variables
-c = args.c
-d = args.d
-g = args.g
+trate=args.r
+trelrate=args.c+args.d+args.g
+ 
+#Normalized relative rates to use in the matrix
+c=args.c/trelrate*trate
+d=args.d/trelrate*trate
+g=args.g/trelrate*trate
 numloci = args.n
 
 pGD = args.pgd # probability of genome doubling per unit time
@@ -1022,10 +1027,10 @@ else:
 </cenancestorTreeLikelihood>
 
 <operators id="operators" optimizationSchedule="default">
-	<scaleOperator scaleFactor="0.5" weight="1.0">
+	<scaleOperator scaleFactor="0.25" weight="0.25">
                 <parameter idref="cnv.loss"/>
 	</scaleOperator>
-	<scaleOperator scaleFactor="0.5" weight="1.0">
+	<scaleOperator scaleFactor="0.25 weight="0.25">
                 <parameter idref="cnv.conversion"/>
 	</scaleOperator>
 	<scaleOperator scaleFactor="0.5" weight="10.0">
@@ -1171,7 +1176,6 @@ else:
 		<parameter idref="exponential.popSize"/>
                 <parameter idref="exponential.growthRate"/>''')[args.exp==True] + '''
 		<parameter idref="clock.rate"/>
-		<cenancestorTreeLikelihood idref="treeLikelihood"/>
 		<coalescentLikelihood idref="coalescent"/>
 	</log>
 

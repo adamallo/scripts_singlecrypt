@@ -286,10 +286,10 @@ for my $filea (@files)
                 }
                 print $OUTFILE "\n</alignment>\n";
 		my $diff_date=$max_date-$min_date;
-		my $cnv_operators=qq{<scaleOperator scaleFactor="0.5" weight="1.0">
+		my $cnv_operators=qq{<scaleOperator scaleFactor="0.25" weight="0.5">
 			<parameter idref="cnv.loss"/>
 		</scaleOperator>
-		<scaleOperator scaleFactor="0.5" weight="1.0">
+		<scaleOperator scaleFactor="0.25" weight="0.5">
 			<parameter idref="cnv.conversion"/>
 		</scaleOperator>};
 		my $cnv_priors=qq{<!-- Loss and conversion (relative to gain) rate priors-->
@@ -514,7 +514,6 @@ for my $filea (@files)
 			<parameter idref="luca_branch"/>
 			<parameter idref="constant.popSize"/>
 			<parameter idref="clock.rate"/>
-			<cenancestorTreeLikelihood idref="treeLikelihood"/>
 			<coalescentLikelihood idref="coalescent"/>
 		</log>
 
