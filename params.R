@@ -3,13 +3,15 @@ library(plyr)
 library(birdring)
 library(grid)
 library(ggrepel)
-setwd("/Users/Diego/Desktop/singlecrypt/results/500_prob/results")
+setwd("/Users/Diego/Desktop/singlecrypt/results/final/")
 arrayPat=c("391","437","451","740","848","852")
 allPat=c("256","391","437","451","740","848","852","911")
 rainbow <- c("#CC0033", "#FF6633", "#FFCC33", "#99CC33", "#009933", "#009999", "#003399", "#330066")
 rainbow10 <- c(rainbow, "gray", "black")
 nprog <- c("256", "437", "451", "911")
+nprognames=c("256-NP", "437-NP", "451-NP", "911-NP")
 prog <- c("391", "740", "848", "852")
+prognames = c("391-P","740-P","848-P","852-P")
 pats <- c(nprog, prog)
 patCol <- rainbow10[1:length(pats)]
 typeCol=c(rainbow[3],rainbow[5])
@@ -19,7 +21,7 @@ for (pat in pats) {
   if (pat %in% prog) {
     pname=paste0(pat,"-P")
   } else {
-    pname=paste0(pat,"-N")
+    pname=paste0(pat,"-NP")
   }
   finalnames=c(finalnames,pname)
 }
@@ -75,7 +77,7 @@ if (length(types) != 2)
 }
 
 rm(alldata)
-plotparams=c("gain.rate","conversion.rate","loss.rate")
+plotparams=c("gain.rate","conversion.rate","loss.rate","sga.rate","ne","ne2","luca_height") #HARDCODED
 n=length(arrayPat)*length(plotparams)
 results=data.frame(patient=vector("character",n),crypts_mean=vector("numeric",n),biopsies_mean=vector("numeric",n),p_diff=vector("numeric",n),ratekind=vector("character",n),stringsAsFactors = FALSE)
 for (npatient in 1:length(arrayPat))
@@ -123,12 +125,15 @@ for (npatient in 1:length(arrayPat))
   if (patient %in% prog) {
     pname=paste0(patient,"-P")
   } else {
-    pname=paste0(patient,"-N")
+    pname=paste0(patient,"-NP")
   }
   pdata$patient=rep(pname,times=nrow(pdata))
   pdata$loss.rate=pdata$cnv.loss*pdata$clock.rate
   pdata$conversion.rate=pdata$cnv.conversion*pdata$clock.rate
   pdata$gain.rate=pdata$clock.rate
+  pdata$sga.rate=pdata$gain.rate+pdata$conversion.rate+pdata$loss.rate
+  pdata$ne=pdata$constant.popSize*7.3 #0.02gen/day => 50days/gen => 7.3gen/year
+  pdata$ne2=pdata$constant.popSize*52.14 #7 days/gen
   
   for (nparam in 1:length(plotparams)) {
     param=plotparams[nparam]
@@ -214,12 +219,17 @@ write.csv("results.csv",x = results)
 # listcombs=makecomb(listparamvalues,1,NULL)
 
 ##make a list of masks, one for each parameter combination
+
+alldata$patient=factor(alldata$patient,levels=c("256-NP","437-NP","451-NP","911-NP","391-P","740-P","848-P","852-P")) ##HARDCODED!!!!!!
+alldata$progressor=alldata$patient %in% prognames
+
 params=c(which(names(alldata)=="type"),which(names(alldata)=="patient"))
 listparamvalues=sapply(params,function(x){unique(alldata[,x])})
 lmasks=makemask(alldata[alldata$prior==0,],listparamvalues,1,rep(TRUE,nrow(alldata[alldata$prior==0,])))
 resultsplot=results
 resultsplot$p_diff=round(as.numeric(resultsplot$p_diff),3)
 resultsplot$y=rep(0,nrow(resultsplot))
+resultsplot$patient=factor(resultsplot$patient,levels=c("256-NP","437-NP","451-NP","911-NP","391-P","740-P","848-P","852-P")) ##HARDCODED!!!!!!
 #resultsplot$y=mapply(function(x,y){return(mean(c(x,y)))},as.numeric(resultsplot$crypts_mean),as.numeric(resultsplot$biopsies_mean))*2
 
 for (nparam in 1:length(plotparams)) {
@@ -231,15 +241,23 @@ for (nparam in 1:length(plotparams)) {
   {
     finalmask=finalmask|HPDmask(alldata[alldata$prior==0,],param,lmasks[[i]],initp) ##CI0.95 (BASE)
   }
-  resultsplot[results$ratekind==param,]$y=ddply((alldata[alldata$prior==0,])[finalmask,], .(patient), summarise, y=max(get(param)))[,2]
   
-  if (name=="Loss") {
-    myplot=ggplot(data=(alldata[alldata$prior==0,])[finalmask,],aes_string(y=param,x="patient",fill="type",color="patient"))+geom_violin(alpha=1/nlayers,size=1)+scale_y_continuous(name=paste0(name," rate (events/year/fragment/allele)"))+scale_x_discrete(name="Patient")+scale_fill_discrete(name="Data type")+scale_color_manual(values=patCol,guide=FALSE)+scale_fill_manual(name="",values=typeCol,labels=c("Crypts","Whole epithelium"))+theme(legend.justification = c(1, 1), legend.position = c(1, 1))
+  tempy=ddply((alldata[alldata$prior==0,])[finalmask,], .(patient), summarise, y=max(get(param)))
+  resultsplot[results$ratekind==param,]$y=tempy[match(resultsplot[results$ratekind==param,]$patient,tempy$patient),2]
+  nlayers=4
+
+  if (name=="Ne"){
+    #myplot=ggplot(data=(alldata[alldata$prior==0,])[finalmask,],aes_string(y=param,x="patient",fill="type",color="patient"))+geom_violin(alpha=1/nlayers,size=1)+scale_y_continuous(name="Effective population size")+scale_x_discrete(name="Patient")+scale_fill_discrete(name="Data type")+scale_color_manual(values=patCol,guide=FALSE)+scale_fill_manual(name="",values=typeCol,labels=c("Crypts","Whole epithelium"))+theme(legend.justification = c(0, 1), legend.position = c(0, 1))
+    myplot=ggplot(data=(alldata[alldata$prior==0,])[finalmask,],aes_string(y=param,x="patient",fill="type"))+geom_violin(alpha=1/nlayers,size=1)+scale_y_continuous(name="Effective population size, generation time 50 days")+scale_x_discrete(name="Patient")+scale_fill_discrete(name="Data type")+scale_fill_manual(name="",values=typeCol,labels=c("Crypts","Whole epithelium"))+theme(legend.justification = c(0, 1), legend.position = c(0, 1))
+    
+  } else if(name=="Ne2"){
+    myplot=ggplot(data=(alldata[alldata$prior==0,])[finalmask,],aes_string(y=param,x="patient",fill="type"))+geom_violin(alpha=1/nlayers,size=1)+scale_y_continuous(name="Effective population size, generation time 7 days")+scale_x_discrete(name="Patient")+scale_fill_discrete(name="Data type")+scale_fill_manual(name="",values=typeCol,labels=c("Crypts","Whole epithelium"))+theme(legend.justification = c(0, 1), legend.position = c(0, 1))
+    
   } else {
-    myplot=ggplot(data=(alldata[alldata$prior==0,])[finalmask,],aes_string(y=param,x="patient",fill="type",color="patient"))+geom_violin(alpha=1/nlayers,size=1)+scale_y_continuous(name=paste0(name," rate (events/year/fragment/allele)"))+scale_x_discrete(name="Patient")+scale_fill_discrete(name="Data type")+scale_color_manual(values=patCol,guide=FALSE)+scale_fill_manual(name="",values=typeCol,labels=c("Crypts","Whole epithelium"))+theme(legend.justification = c(0, 1), legend.position = c(0, 1))
+    #myplot=ggplot(data=(alldata[alldata$prior==0,])[finalmask,],aes_string(y=param,x="patient",fill="type",color="patient"))+geom_violin(alpha=1/nlayers,size=1)+scale_y_continuous(name=paste0(name," rate (events/year/fragment/allele)"))+scale_x_discrete(name="Patient")+scale_fill_discrete(name="Data type")+scale_color_manual(values=patCol,guide=FALSE)+scale_fill_manual(name="",values=typeCol,labels=c("Crypts","Whole epithelium"))+theme(legend.justification = c(0, 1), legend.position = c(0, 1))
+    myplot=ggplot(data=(alldata[alldata$prior==0,])[finalmask,],aes_string(y=param,x="patient",fill="type"))+geom_violin(alpha=1/nlayers,size=1)+scale_y_continuous(name=paste0(name," rate (events/year/fragment/allele)"))+scale_x_discrete(name="Patient")+scale_fill_discrete(name="Data type")+scale_fill_manual(name="",values=typeCol,labels=c("Crypts","Whole epithelium"))+theme(legend.justification = c(0, 1), legend.position = c(0, 1))
   }
    
-  nlayers=4
   for (j in 1:(nlayers-1)) {
     finalmask=rep(FALSE,nrow(alldata[alldata$prior==0,]))
     for (i in 1:length(lmasks))
@@ -248,6 +266,6 @@ for (nparam in 1:length(plotparams)) {
     }
     myplot=myplot+geom_violin(data=(alldata[alldata$prior==0,])[finalmask,],alpha=1/nlayers*(j+1),size=0.3,color="black",linetype=3)
   }
-  myplot=myplot+stat_summary(fun.y=mean,geom="point",position = position_dodge(width = 0.9),color="black")+geom_text(data=resultsplot[resultsplot$ratekind==param,],aes(y=y,x=patient,label=p_diff),color="black")
+  myplot=myplot+stat_summary(fun.y=mean,geom="point",position = position_dodge(width = 0.9),aes(shape=progressor),color="black",size=3)+geom_text(data=resultsplot[resultsplot$ratekind==param,],aes(y=y,x=patient,label=p_diff),color="black")+scale_shape_discrete(name="",labels=c("Non progressor","Progressor"))
   save_plot(paste0(name,".pdf"),plot=myplot,base_height=12)
 }

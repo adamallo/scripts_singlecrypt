@@ -1,5 +1,5 @@
 for i in *.xml; do sbatch beast.sbatch;done
-for i in *.trees; do name=$(echo $i | sed "s/\.xml\.trees//"); sbatch -p private --mem 10000 <( echo -e '#!/bin/bash'"\ntreeannotator -burninTrees 500 $i ${name}_MCC.trees" );done
+for i in *.trees; do name=$(echo $i | sed "s/\.xml\.trees//"); sbatch -p private --mem 10000 <( echo -e '#!/bin/bash'"\ntreeannotator -burninTrees 1000 $i ${name}_MCC.trees" );done
 for i in r*;do r=$(echo $i|sed "s/r//");for j in $i/*;do mv $j $(echo $j|sed "s/\(.*\)\.\(...\)/\1.r$r.\2/");done;done
 mkdir results;mv r*/* results/;mkdir results/MCC;mv results/*MCC* results/MCC
 mkdir results/out; mv results/*.out results/out
