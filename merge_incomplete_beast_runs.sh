@@ -11,8 +11,8 @@ cd $1
 eliminate_extra=500050000
 
 for i in *.xml
-    do
-        name=$(echo $i | sed "s/.xml//")
+do
+	name=$(echo $i | sed "s/.xml//")
         unset states
         declare -a states
         istate=0
@@ -53,4 +53,5 @@ for i in *.xml
             fi
             istate=$(( $istate + 1 )) 
         done
+	echo "End;" >> $name.merged.trees ###Last line. Otherwise the Nexus file does not match the standard and fails with some software
 done
