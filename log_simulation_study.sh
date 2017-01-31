@@ -1,4 +1,7 @@
 #!/bin/bash
+
+###ATTENTION: This script has been put together as a log and it will not work as expected if run at once (it does not wait for cluster jobs to finish, for example)
+
 SCRIPTS_DIR=/Users/Diego/Desktop/singlecrypt/scripts/subsmodel
 mkdir outlogs
 mkdir trees
@@ -34,22 +37,27 @@ for i in *.xml; do name=$(echo $i | sed "s/.xml//"); nsamples=$(wc -l ${name}.xm
 cd ../r3
 for i in *.xml; do name=$(echo $i | sed "s/.xml//"); nsamples=$(wc -l ${name}.xml.log | awk '{print $1}'); if [[ $nsamples -ne 10004 ]];then sbatch beast.sbatch -seed 27 -overwrite $i ;fi;done
 
-#Tree analysis
-##############
-for j in r*
-do
-    cd $j
-        for i in *.trees; do name=$(echo $i | sed "s/\.xml.trees*//"); sbatch -p private --mem 10000 <(echo -e '#!/bin/bash'"\ntreeannotator -burninTrees 500 $i ${name}_MCC.trees");done
-    cd ..
-done
-
+#Tree analysis per replicate
+############################
+#for j in r*
+#do
+#    cd $j
+#        for i in *.trees; do name=$(echo $i | sed "s/\.xml.trees*//"); sbatch -p private --mem 10000 <(echo -e '#!/bin/bash'"\ntreeannotator -burninTrees 500 $i ${name}_MCC.trees");done
+#    cd ..
+#done
 #Double check
-for j in r*
-do 
-    cd $j
-    for i in *.xml; do name=$(echo $i | sed "s/.xml//"); if [[ ! -f ${name}_MCC.trees ]];then sbatch -p private --mem 10000 <(echo -e '#!/bin/bash'"\ntreeannotator -burninTrees 500 ${i}.trees ${name}_MCC.trees") ;fi;done
-    cd ..
-done
+#for j in r*
+#do 
+#    cd $j
+#    for i in *.xml; do name=$(echo $i | sed "s/.xml//"); if [[ ! -f ${name}_MCC.trees ]];then sbatch -p private --mem 10000 <(echo -e '#!/bin/bash'"\ntreeannotator -burninTrees 500 ${i}.trees ${name}_MCC.trees") ;fi;done
+#    cd ..
+#done
+
+
+#Old parameter analysis by replicate
+####################################
+echo -e "rep r gd mod cnv.loss cnv.conversion treeModel.rootHeight luca_height luca_branch constant.popSize clock.rate" > parameters.out;for i in tree*.xml.log;do rep=$(echo $i | sed "s/tree\(.*\)_r.*_gd.*_mod.*\.xml\.log/\1/");r=$(echo $i | sed "s/tree.*_r\(.*\)_gd.*_mod.*\.xml\.log/\1/");gd=$(echo $i | sed "s/tree.*_r.*_gd\(.*\)_mod.*\.xml\.log/\1/");mod=$(echo $i | sed "s/tree.*_r.*_gd.*_mod\(.*\)\.xml\.log/\1/");awk -v burning=500 -v rep=$rep -v r=$r -v gd=$gd -v mod=$mod 'BEGIN{FS="\t";a=b=c=d=e=f=g=0}{if(NR>3+burning)a+=$5;b+=$6;c+=$7;d+=$8;e+=$9;f+=$10;g+=$11}END{print rep,r,gd,mod,a/(NR-3),b/(NR-3),c/(NR-3),d/(NR-3),e/(NR-3),f/(NR-3),g/(NR-3)}' $i >> parameters.out;done
+
 
 #Reorganization for RWTY
 ########################
@@ -61,6 +69,21 @@ for i in $(ls results/*.trees | xargs -n1 basename | sed "s/\.r.\.trees//" | uni
 cd results
 for i in *; do if [[ -d $i ]];then sbatch Rscript.sbatch ../../../../scripts_singlecrypt/rwty.R $i ;fi;done
 
-#Parameter analysis
-echo -e "rep r gd mod cnv.loss cnv.conversion treeModel.rootHeight luca_height luca_branch constant.popSize clock.rate" > parameters.out;for i in tree*.xml.log;do rep=$(echo $i | sed "s/tree\(.*\)_r.*_gd.*_mod.*\.xml\.log/\1/");r=$(echo $i | sed "s/tree.*_r\(.*\)_gd.*_mod.*\.xml\.log/\1/");gd=$(echo $i | sed "s/tree.*_r.*_gd\(.*\)_mod.*\.xml\.log/\1/");mod=$(echo $i | sed "s/tree.*_r.*_gd.*_mod\(.*\)\.xml\.log/\1/");awk -v burning=500 -v rep=$rep -v r=$r -v gd=$gd -v mod=$mod 'BEGIN{FS="\t";a=b=c=d=e=f=g=0}{if(NR>3+burning)a+=$5;b+=$6;c+=$7;d+=$8;e+=$9;f+=$10;g+=$11}END{print rep,r,gd,mod,a/(NR-3),b/(NR-3),c/(NR-3),d/(NR-3),e/(NR-3),f/(NR-3),g/(NR-3)}' $i >> parameters.out;done
+#Tree analysis combined replicates
+##################################
+cd results
+for i in tree*; do if [[ -d $i ]]; then name=$(echo $i|sed "s/.xml//g"); if [[ ! -f ${name}_MCC.trees ]]; then cd $i;sbatch -p private --mem 10000 <( echo -e '#!/bin/bash'"\nlogcombiner -trees -burnin 1000000 *.trees combined.trees.mcc\ntreeannotator combined.trees.mcc ${name}_MCC.trees" );cd..;fi;fi;done
+
+##When the jobs finished
+mkdir MCC; for i in tree*; do if [[ -d $i ]]; then rm -f $i/combined.trees.mcc;mv $i/*MCC* MCC;fi;done
+sbatch -p private Rscript.sbatch ../../../../scripts_singlecrypt/RF.R MCC ../trees/rooted_scaled.trees rf.csv
+
+#Parameter analysis combined replicates
+#######################################
+burnin=500
+tailn=$(( $burnin+4 ))
+tailvar="+$tailn"
+for i in tree*; do if [[ -d $i ]]; then name=$(echo $i|sed "s/.xml//g");rm -f $i/$name.combined.log;for j in $i/$name*r*.log; do if [[ ! -f $i/$name.combined.log ]];then head -n 3 $j > $i/$name.combined.log;fi; cat $j | tail -n $tailvar >>$i/$name.combined.log;done;fi;done
+echo -e "rep r gd mod cnv.loss cnv.conversion treeModel.rootHeight luca_height luca_branch constant.popSize clock.rate" > parameters.out;for i in */tree*.combined.log;do rep=$(echo $i | sed "s/.*\/tree\(.*\)_r.*_gd.*_mod.*\.log/\1/");r=$(echo $i | sed "s/.*\/tree.*_r\(.*\)_gd.*_mod.*\.log/\1/");gd=$(echo $i | sed "s/.*\/tree.*_r.*_gd\(.*\)_mod.*\.log/\1/");mod=$(echo $i | sed "s/.*\/tree.*_r.*_gd.*_mod\(.*\)\.combined\.log/\1/");awk -v burnin=0 -v rep=$rep -v r=$r -v gd=$gd -v mod=$mod 'BEGIN{FS="\t";a=b=c=d=e=f=g=0}{if(NR>3+burnin)a+=$5;b+=$6;c+=$7;d+=$8;e+=$9;f+=$10;g+=$11}END{print rep,r,gd,mod,a/(NR-3),b/(NR-3),c/(NR-3),d/(NR-3),e/(NR-3),f/(NR-3),g/(NR-3)}' $i >> parameters.out;done
+
 
