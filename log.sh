@@ -1,3 +1,5 @@
+perl ../scripts/generate_genotypes.pl -i data/ -f xml -s 20 > data_generation.log
+
 for i in *.xml; do sbatch beast.sbatch;done
 for i in r*;do r=$(echo $i|sed "s/r//");for j in $i/*;do mv $j $(echo $j|sed "s/\(.*\)\.\(...\)/\1.r$r.\2/");done;done
 mkdir results/out; mv results/*.out results/out

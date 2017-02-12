@@ -186,28 +186,28 @@ def getScalingFactor():
 
   return numstates/sumdiag ##Unweighted mean
  
-#Converts str sequences to lists of touples
+#Converts str sequences to lists of tuples
 def strToTouples(seq):
   seqTouples=list()
   for char in seq:
     seqTouples.append(charDict[char])
   return seqTouples
 
-#Duplicate list of touples
+#Duplicate list of tuples
 def applyGdTouple(seq):
   newseq=list()
-  for touple in seq:
-    a=touple[0]*2
-    b=touple[1]*2
+  for tuple in seq:
+    a=tuple[0]*2
+    b=tuple[1]*2
     newseq.append((a,b))
   return newseq
 
-#Converts touple sequences to string sequences
-def touplesToStr(seq):
+#Converts tuple sequences to string sequences
+def tuplesToStr(seq):
   newseq=""
-  for touple in seq:
-    oa=touple[0]
-    ob=touple[1]
+  for tuple in seq:
+    oa=tuple[0]
+    ob=tuple[1]
     a=oa
     b=ob
     while a + b > 6: ##Keeps decreasing the state of the highest allele until the initial condition is met. If the a==b, it uses the original states to give priority, if oa==ob, reduces the two of them
@@ -277,8 +277,8 @@ def baselineStr(seq):
 
 def baselineTouple(seq):
   total=0
-  for touple in seq:
-    total+=touple[0] + touple[1]
+  for tuple in seq:
+    total+=tuple[0] + tuple[1]
   return total/float(len(seq))
 
 
@@ -288,20 +288,20 @@ def devFromBaselineModification(seq):
 #  newseq=""
   newseq=list()
 #  for char in seq:
-  for touple in seq:
+  for tuple in seq:
     na=1
     nb=1
 #    if charDict[char][0] > baseL :
-    if touple[0] > baseL :
+    if tuple[0] > baseL :
       na=2
 #   elif charDict[char][0] < baseL :
-    elif touple[0] < baseL :
+    elif tuple[0] < baseL :
       na=0
 #   if charDict[char][1] > baseL :
-    if touple[1] > baseL :
+    if tuple[1] > baseL :
       nb=2
 #   elif charDict[char][1] < baseL :
-    elif touple[1] < baseL :
+    elif tuple[1] < baseL :
       nb=0
 #    newseq+=()arrayChar[na][nb]
     newseq.append((na,nb))
@@ -309,21 +309,25 @@ def devFromBaselineModification(seq):
 #      print "DEBUG: %d %s %s" % (baseL,char,arrayChar[na][nb])
   return newseq
 
-def relativeFromBaselineModification(seq):
+def relativeFromBaselineModification(seq,rtuples):
 #   baseL=int(round(baselineStr(seq)/2.0,0))
   baseL=int(round(baselineTouple(seq)/2.0,0))
 #  newseq=""
   newseq=list()
 #  for char in seq:
-  for touple in seq:
+  for position in xrange(len(seq)):
+    tuple=seq[position]
+    rtup=rtuples[position]
 #    na=charDict[char][0]
 #    nb=charDict[char][1]
-    na=touple[0]
-    nb=touple[1]
+    na=tuple[0]
+    nb=tuple[1]
+    ra=rtup[0]
+    rb=rtup[1]
     #A copy
     if na % baseL == 0:
       na=na/baseL
-    elif random.random() < 0.5:
+    elif ra < 0.5:
       na=int(math.floor(na/float(baseL)))
       if na==0:
         na=1 #There was signal, and therefore we assume that at least there have to be one copy
@@ -332,13 +336,13 @@ def relativeFromBaselineModification(seq):
     #B copy
     if nb % baseL == 0:
       nb=nb/baseL
-    elif random.random() < 0.5:
+    elif rb < 0.5:
       nb=int(math.floor(nb/float(baseL)))
       if nb==0:
         nb=1 #There was signbl, and therefore we assume that at least there have to be one copy
     else:
       nb=int(math.ceil(nb/float(baseL)))
-    ####Think about it here!!
+
 #    newseq+=arrayChar[na][nb]
     newseq.append((na,nb))
 #    if arrayChar[na][nb] != char:
@@ -780,7 +784,7 @@ for i in xrange(len(names)):
     del seqs[i]
     del names[i]
 
-#Conversion of sequences to lists of touples
+#Conversion of sequences to lists of tuples
 for i in xrange(len(seqs)):
   strSeq=seqs[i].symbols_as_string(sep="")
   seqs[i]=strToTouples(strSeq)
@@ -809,23 +813,24 @@ if args.randomGD > 0:
     ti+=1
 
 #Recoding the states to tackle GD
-#Sequences as list of touples are the real states. Even the original-sequence option needs some recoding, since the random duplication of tips generates states not included in our model
+#Sequences as list of tuples are the real states. Even the original-sequence option needs some recoding, since the random duplication of tips generates states not included in our model
 newseqs=list()
 if args.mod == "none":
   print "Original sequences"
   for i in xrange(len(seqs)):##Unnecessary, just for debuggin purposes
     #seqsstringSeq=seqs[i].symbols_as_string(sep="")
-    newseqs.append(touplesToStr(seqs[i]))
+    newseqs.append(tuplesToStr(seqs[i]))
 elif args.mod == "max2":
   print "Sequences modified to the 9-state model"
   for i in xrange(len(seqs)):
     #stringSeq=seqs[i].symbols_as_string(sep="")
-    newseqs.append(touplesToStr(devFromBaselineModification(seqs[i])))
+    newseqs.append(tuplesToStr(devFromBaselineModification(seqs[i])))
 elif args.mod == "baseline":
   print "States relative to the baseline"
+  r=[(random.random(),random.random()) for i in xrange(len(seqs[0]))]
   for i in xrange(len(seqs)):
     #stringSeq=seqs[i].symbols_as_string(sep="")
-    newseqs.append(touplesToStr(relativeFromBaselineModification(seqs[i])))
+    newseqs.append(tuplesToStr(relativeFromBaselineModification(seqs[i],r)))
 else:
   raise Exception('Incorrect --mod option')
 seqs=newseqs
@@ -1030,7 +1035,7 @@ else:
 	<scaleOperator scaleFactor="0.25" weight="0.25">
                 <parameter idref="cnv.loss"/>
 	</scaleOperator>
-	<scaleOperator scaleFactor="0.25 weight="0.25">
+	<scaleOperator scaleFactor="0.25" weight="0.25">
                 <parameter idref="cnv.conversion"/>
 	</scaleOperator>
 	<scaleOperator scaleFactor="0.5" weight="10.0">

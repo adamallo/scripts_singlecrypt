@@ -13,7 +13,8 @@ cd ..
 mkdir xml
 python $SCRIPTS_DIR/../add_cenan_years.py -i trees/trees.tree -o trees/rooted_scaled.trees -gt 365 -od 20 ##Adds the outgroup and scales the tree in time units
 mkdir alignments
-rates=(0.0001 0.001 0.01);gds=(0 0.001 "random");mods=("none" "baseline" "max2");i=0;seed=1;while read tree; do echo $tree > trees/tree${i}.tree;for gd in ${gds[*]}; do for rate in ${rates[*]}; do for mod in ${mods[*]}; do echo "Simulating tree${i}_r${rate}_gd${gd}_mod${mod}.xml"; if [[ $gd == "random" ]]; then python $SCRIPTS_DIR/simulate.py -d $rate -c $rate -g $rate -pgd 0 --randomGD 2 -ggd 0 -n 100 --xml -a 40 --mod $mod -i trees/tree${i}.tree -o xml/tree${i}_r${rate}_gd${gd}_mod${mod}.xml --seed $seed --period 2000 --ngen 20000000; else python $SCRIPTS_DIR/simulate.py -d $rate -c $rate -g $rate -pgd $gd -ggd 0.31 -n 100 --xml -a 40 --mod $mod -i trees/tree${i}.tree -o xml/tree${i}_r${rate}_gd${gd}_mod${mod}.xml --seed $seed --period 2000 --ngen 20000000;fi;done;seed=$(($seed+1));done;done;i=$(($i+1));done < trees/rooted_scaled.trees > outlogs/log_simulation.txt
+rates=(0.0003 0.003 0.03);gds=(0 0.001 "random");mods=("none" "baseline" "max2");i=0;seed=1;while read tree; do echo $tree > trees/tree${i}.tree;for gd in ${gds[*]}; do for rate in ${rates[*]}; do for mod in ${mods[*]}; do echo "Simulating tree${i}_r${rate}_gd${gd}_mod${mod}.xml"; if [[ $gd == "random" ]]; then python $SCRIPTS_DIR/simulate.py -r $rate -c 1 -g 1 -d 1 -pgd 0 --randomGD 2 -ggd 0 -n 100 --xml -a 40 --mod $mod -i trees/tree${i}.tree -o xml/tree${i}_r${rate}_gd${gd}_mod${mod}.xml --seed $seed --period 2000 --ngen 20000000; else python $SCRIPTS_DIR/simulate.py -r $rate -c 1 -g 1 -d 1 -pgd $gd -ggd 0.31 -n 100 --xml -a 40 --mod $mod -i trees/tree${i}.tree -o xml/tree${i}_r${rate}_gd${gd}_mod${mod}.xml --seed $seed --period 2000 --ngen 20000000;fi;done;seed=$(($seed+1));done;done;i=$(($i+1));done < trees/rooted_scaled.trees > outlogs/log_simulation.txt
+#rates=(0.0001 0.001 0.01);gds=(0 0.001 "random");mods=("none" "baseline" "max2");i=0;seed=1;while read tree; do echo $tree > trees/tree${i}.tree;for gd in ${gds[*]}; do for rate in ${rates[*]}; do for mod in ${mods[*]}; do echo "Simulating tree${i}_r${rate}_gd${gd}_mod${mod}.xml"; if [[ $gd == "random" ]]; then python $SCRIPTS_DIR/simulate.py -d $rate -c $rate -g $rate -pgd 0 --randomGD 2 -ggd 0 -n 100 --xml -a 40 --mod $mod -i trees/tree${i}.tree -o xml/tree${i}_r${rate}_gd${gd}_mod${mod}.xml --seed $seed --period 2000 --ngen 20000000; else python $SCRIPTS_DIR/simulate.py -d $rate -c $rate -g $rate -pgd $gd -ggd 0.31 -n 100 --xml -a 40 --mod $mod -i trees/tree${i}.tree -o xml/tree${i}_r${rate}_gd${gd}_mod${mod}.xml --seed $seed --period 2000 --ngen 20000000;fi;done;seed=$(($seed+1));done;done;i=$(($i+1));done < trees/rooted_scaled.trees > outlogs/log_simulation.txt
 
 ##
 #xmls are used to be run three times in folders r1-r3
@@ -72,11 +73,11 @@ for i in *; do if [[ -d $i ]];then sbatch Rscript.sbatch ../../../../scripts_sin
 #Tree analysis combined replicates
 ##################################
 cd results
-for i in tree*; do if [[ -d $i ]]; then name=$(echo $i|sed "s/.xml//g"); if [[ ! -f ${name}_MCC.trees ]]; then cd $i;sbatch -p private --mem 10000 <( echo -e '#!/bin/bash'"\nlogcombiner -trees -burnin 1000000 *.trees combined.trees.mcc\ntreeannotator combined.trees.mcc ${name}_MCC.trees" );cd..;fi;fi;done
+for i in tree*; do if [[ -d $i ]]; then name=$(echo $i|sed "s/.xml//g"); if [[ ! -f $i/${name}_MCC.trees ]]; then cd $i;sbatch -p private --mem 10000 <( echo -e '#!/bin/bash'"\nlogcombiner -trees -burnin 1000000 *xml.*.trees combined.trees.mcc\ntreeannotator combined.trees.mcc ${name}_MCC.trees" );cd..;fi;fi;done
 
 ##When the jobs finished
 mkdir MCC; for i in tree*; do if [[ -d $i ]]; then rm -f $i/combined.trees.mcc;mv $i/*MCC* MCC;fi;done
-sbatch -p private Rscript.sbatch ../../../../scripts_singlecrypt/RF.R MCC ../trees/rooted_scaled.trees rf.csv
+sbatch -p private Rscript.sbatch ../../../../../scripts_singlecrypt/RF.R MCC ../trees/rooted_scaled.trees rf.csv
 
 #Parameter analysis combined replicates
 #######################################

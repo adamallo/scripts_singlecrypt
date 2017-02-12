@@ -3,9 +3,9 @@ library(grid)
 library(gridExtra)
 library(gtable)
 
-kind="prog"
+kind="nonprog"
 dir=paste0("/Users/Diego/Desktop/singlecrypt/simulation/final/simulation_",kind,"/results/")
-titletext="Progressors (54 leaves)"
+titletext="Nonprogressors (11 leaves)"
 data=read.csv(paste0(dir,"rf.csv"))
 data=data[,-1]
 data2=read.csv(paste0(dir,"parameters.out"),sep=" ")
@@ -115,14 +115,14 @@ for (dup in unique(data$gd)) {
         datA=data[data$gd==dup & data$rate==rate & data$mod==methods[a],]$rf
         datB=data[data$gd==dup & data$rate==rate & data$mod==methods[b],]$rf
         if(length(datA)>length(datB)) {
-          print("Error in ",dup,rate,a,b)
-          #print(length(datA),length(dataB))
-          #datA=#get again the data, only with the replicates present in B
+          print("Removing samples from datA since there are missing data in datB") ##Samples without mutations after baseline correction
+          filt=data[data$gd==dup & data$rate==rate & data$mod==methods[a],]$rep %in% data[data$gd==dup & data$rate==rate & data$mod==methods[b],]$rep
+          datA=(data[data$gd==dup & data$rate==rate & data$mod==methods[a],])[filt,]$rf
         }else if (length(datB)>length(datA)) {
-          print("Error in ",dup,rate,a,b)
-          #print(length(datB),length(datA))
-          #datB=#get again the data, only with the replicates present in A
-        }
+          print("Removing samples from datA since there are missing data in datA")
+          filt=data[data$gd==dup & data$rate==rate & data$mod==methods[b],]$rep %in% data[data$gd==dup & data$rate==rate & data$mod==methods[a],]$rep
+          datB=(data[data$gd==dup & data$rate==rate & data$mod==methods[b],])[filt,]$rf
+         }
         
         p_value=wilcox.test(datA,datB,paired = TRUE)$p.value
         add=ifelse(p_value > 0.05/n_comb, "", ifelse(p_value > 0.01/n_comb, " *",
@@ -131,11 +131,19 @@ for (dup in unique(data$gd)) {
 
         datA=data2_rel[data2_rel$gd==dup & data2_rel$r==rate & data2_rel$mod==methods[a],]$clock.rate.error
         datB=data2_rel[data2_rel$gd==dup & data2_rel$r==rate & data2_rel$mod==methods[b],]$clock.rate.error
-        
+        if(length(datA)>length(datB)) {
+          print("Removing samples from data2_rel since there are missing data in datB") ##Samples without mutations after baseline correction
+          filt=data2_rel[data2_rel$gd==dup & data2_rel$r==rate & data2_rel$mod==methods[a],]$rep %in% data2_rel[data2_rel$gd==dup & data2_rel$r==rate & data2_rel$mod==methods[b],]$rep
+          datA=(data2_rel[data2_rel$gd==dup & data2_rel$r==rate & data2_rel$mod==methods[a],])[filt,]$clock.rate.error
+        }else if (length(datB)>length(datA)) {
+          print("Removing samples from data2_rel since there are missing data in datA")
+          filt=data2_rel[data2_rel$gd==dup & data2_rel$r==rate & data2_rel$mod==methods[b],]$rep %in% data2_rel[data2_rel$gd==dup & data2_rel$r==rate & data2_rel$mod==methods[a],]$rep
+          datB=(data2_rel[data2_rel$gd==dup & data2_rel$r==rate & data2_rel$mod==methods[b],])[filt,]$clock.rate.error
+        }
         p_value=wilcox.test(datA,datB,paired = TRUE)$p.value
         add=ifelse(p_value > 0.05/n_comb, "", ifelse(p_value > 0.01/n_comb, " *",
                                                      ifelse(p_value > 0.001/n_comb, " **", " ***")))
-        print(paste("mRate",dup,rate,methods[a],methods[b],sep=":"))
+        print(paste(paste("mRate",dup,rate,methods[a],methods[b],sep=":"),paste0(signif(p_value,digits=2),add),sep=","))
       }
     }
   }

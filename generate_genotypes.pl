@@ -53,6 +53,7 @@ open(my $FILEDOB,$DOB_file);
 my @line_dobs=<$FILEDOB>;
 close($FILEDOB);
 my %dobs;
+my %fbes; #first date with BE
 my @temp;
 
 ##Stats file
@@ -65,6 +66,7 @@ foreach my $dobline (@line_dobs)
 {
 	@temp=split(" ",$dobline);
 	$dobs{$temp[0]}=$temp[1];
+	$fbes{$temp[0]}=$temp[2];
 	#print("Key: $temp[0], timestamp:$temp[1]\n"); #
 }
 
@@ -80,6 +82,8 @@ for my $filea (@files)
 	$fileb=~s/(.*)A.txt/$1B.txt/;
 	$id=~s/(.*)_phased.*.txt/$1/;
 	my $dob=$dobs{$id};
+	my $fbe=$fbes{$id};
+
 	if (!defined($dob))
 	{
 		$dob=0;
@@ -153,7 +157,7 @@ for my $filea (@files)
 	my $n_samples=scalar(@samples);
 	my $n_char=scalar(@{$dataA[0]});
 	my $max_date;
-	my $min_date;
+	my $min_dated_tip;
 
 	##STATS output
 	for (my $i=0;$i<$n_samples;++$i)
@@ -166,22 +170,22 @@ for my $filea (@files)
 		{
 			$max_date=$time;
 		}
-		unless ($min_date)
+		unless ($min_dated_tip)
 		{
-			$min_date=$time;
+			$min_dated_tip=$time;
 		}
 		if ($time > $max_date)
 		{
 			$max_date=$time;
 		}
-		if ($time < $min_date)
+		if ($time < $min_dated_tip)
 		{
-			$min_date=$time;
+			$min_dated_tip=$time;
 		}
         }
 	my $fileid=$outname;
 	$fileid=~s/A\.txt//;
-	my $deltaTime=$max_date-$min_date;
+	my $deltaTime=$max_date-$min_dated_tip;
 	print($STATS "$fileid,$n_samples,$deltaTime,$n_char\n");
 	##
 
@@ -238,17 +242,17 @@ for my $filea (@files)
 			{
 				$max_date=$time;
 			}
-			unless ($min_date)
+			unless ($min_dated_tip)
 			{
-				$min_date=$time;
+				$min_dated_tip=$time;
 			}
 			if ($time > $max_date)
 			{
 				$max_date=$time;
 			}
-			if ($time < $min_date)
+			if ($time < $min_dated_tip)
 			{
-				$min_date=$time;
+				$min_dated_tip=$time;
 			}
 			#print "DEBUG: sample timestamp $times{$samples[$i]}, DOB $dob, epochtime $timestamp, epochtime(years) $time\n"; #Debug
 			print $OUTFILE "\t\t<date value=\"$time\" direction=\"forwards\" units=\"years\"/>";
@@ -285,7 +289,7 @@ for my $filea (@files)
                         print $OUTFILE "\n\t</sequence>";
                 }
                 print $OUTFILE "\n</alignment>\n";
-		my $diff_date=$max_date-$min_date;
+		my $diff_date=$max_date-$fbe;
 		my $cnv_operators=qq{<scaleOperator scaleFactor="0.25" weight="0.25">
 			<parameter idref="cnv.loss"/>
 		</scaleOperator>
@@ -393,7 +397,7 @@ for my $filea (@files)
         		<parameter id="luca_height" lower="$diff_date" upper="$max_date"/>
         	</cenancestorHeight>
 		<cenancestorBranch>
-			<parameter id="luca_branch" value="1" upper="$min_date" lower="0.0"/>
+			<parameter id="luca_branch" value="1" upper="$fbe" lower="0.0"/>
 			<!-- Value 1 as a safe starting value -->
 		</cenancestorBranch>
 		<strictClockCenancestorBranchRates idref="branchRates"/>
@@ -574,6 +578,13 @@ sub correctBaseline
 	my ($A,$B)=@_;
 	my $nLoci=scalar @{${$A}[0]};
 	my $nSamples=scalar @{$A};
+	my @ra;
+	my @rb;
+	for (my $i=0;$i<$nLoci;++$i)
+	{
+		push(@ra,rand());
+		push(@rb,rand());	
+	}
 #	print("DEBUG: $nLoci, $nSamples\n");
 	for (my $sample=0;$sample<$nSamples;++$sample)
 	{
@@ -592,7 +603,7 @@ sub correctBaseline
 			{
 				${${$A}[$sample]}[$locus]/=$intBaseline;
 			}
-			elsif(rand() <0.5)
+			elsif($ra[$locus] <0.5)
 			{
 				${${$A}[$sample]}[$locus]=floor(${${$A}[$sample]}[$locus]/$intBaseline);
 			}
@@ -604,7 +615,7 @@ sub correctBaseline
                         {
                                 ${${$B}[$sample]}[$locus]/=$intBaseline;
                         }
-                        elsif(rand() <0.5)
+                        elsif($rb[$locus] <0.5)
                         {
                                 ${${$B}[$sample]}[$locus]=floor(${${$B}[$sample]}[$locus]/$intBaseline);
                         }
