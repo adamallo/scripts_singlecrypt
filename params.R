@@ -26,10 +26,15 @@ for (pat in pats) {
   finalnames=c(finalnames,pname)
 }
 names(patCol) <- finalnames
+names(finalnames)=pats
 
 burnin=1000 #10%
 #arrayPat=allPat
 types=c("crypts","pool")
+
+ages=read.csv(file = "/Users/Diego/Desktop/singlecrypt/final_data/data/ages.tsv",sep = " ")
+ages$newpatient=finalnames[as.character(ages$patient)]
+
 
 ####My functions#####
 #####################
@@ -77,7 +82,7 @@ if (length(types) != 2)
 }
 
 rm(alldata)
-plotparams=c("gain.rate","conversion.rate","loss.rate","sga.rate","ne","ne2","luca_height") #HARDCODED
+plotparams=c("gain.rate","conversion.rate","loss.rate","sga.rate","ne","ne2","luca_age") #HARDCODED
 n=length(arrayPat)*length(plotparams)
 results=data.frame(patient=vector("character",n),crypts_mean=vector("numeric",n),biopsies_mean=vector("numeric",n),p_diff=vector("numeric",n),ratekind=vector("character",n),stringsAsFactors = FALSE)
 for (npatient in 1:length(arrayPat))
@@ -134,6 +139,8 @@ for (npatient in 1:length(arrayPat))
   pdata$sga.rate=pdata$gain.rate+pdata$conversion.rate+pdata$loss.rate
   pdata$ne=pdata$constant.popSize*7.3 #0.02gen/day => 50days/gen => 7.3gen/year
   pdata$ne2=pdata$constant.popSize*52.14 #7 days/gen
+  pdata$luca_age=apply(pdata,1,function(x){ages[ages$newpatient==pname & as.character(ages$type)==as.character(x["type"]),]$age-as.numeric(x["luca_height"])})
+  
   
   for (nparam in 1:length(plotparams)) {
     param=plotparams[nparam]
@@ -230,6 +237,8 @@ resultsplot=results
 resultsplot$p_diff=round(as.numeric(resultsplot$p_diff),3)
 resultsplot$y=rep(0,nrow(resultsplot))
 resultsplot$patient=factor(resultsplot$patient,levels=c("256-NP","437-NP","451-NP","911-NP","391-P","740-P","848-P","852-P")) ##HARDCODED!!!!!!
+resultsplot$progressor=resultsplot$patient %in% prognames
+resultsplot$diffrwhole=as.numeric(resultsplot$crypts_mean)/as.numeric(resultsplot$biopsies_mean)
 #resultsplot$y=mapply(function(x,y){return(mean(c(x,y)))},as.numeric(resultsplot$crypts_mean),as.numeric(resultsplot$biopsies_mean))*2
 
 for (nparam in 1:length(plotparams)) {
@@ -253,11 +262,12 @@ for (nparam in 1:length(plotparams)) {
   } else if(name=="Ne2"){
     myplot=ggplot(data=(alldata[alldata$prior==0,])[finalmask,],aes_string(y=param,x="patient",fill="type"))+geom_violin(alpha=1/nlayers,size=1)+scale_y_continuous(name="Effective population size, generation time 7 days")+scale_x_discrete(name="Patient")+scale_fill_discrete(name="Data type")+scale_fill_manual(name="",values=typeCol,labels=c("Crypts","Whole epithelium"))+theme(legend.justification = c(0, 1), legend.position = c(0, 1))
     
+  } else if(name=="Luca_age"){
+    myplot=ggplot(data=(alldata[alldata$prior==0,])[finalmask,],aes_string(y=param,x="patient",fill="type"))+geom_violin(alpha=1/nlayers,size=1)+scale_y_continuous(name="Last universal common ancestor age (years from birthday)")+scale_x_discrete(name="Patient")+scale_fill_discrete(name="Data type")+scale_fill_manual(name="",values=typeCol,labels=c("Crypts","Whole epithelium"))+theme(legend.justification = c(0, 1), legend.position = c(0, 1))
   } else {
     #myplot=ggplot(data=(alldata[alldata$prior==0,])[finalmask,],aes_string(y=param,x="patient",fill="type",color="patient"))+geom_violin(alpha=1/nlayers,size=1)+scale_y_continuous(name=paste0(name," rate (events/year/fragment/allele)"))+scale_x_discrete(name="Patient")+scale_fill_discrete(name="Data type")+scale_color_manual(values=patCol,guide=FALSE)+scale_fill_manual(name="",values=typeCol,labels=c("Crypts","Whole epithelium"))+theme(legend.justification = c(0, 1), legend.position = c(0, 1))
     myplot=ggplot(data=(alldata[alldata$prior==0,])[finalmask,],aes_string(y=param,x="patient",fill="type"))+geom_violin(alpha=1/nlayers,size=1)+scale_y_continuous(name=paste0(name," rate (events/year/fragment/allele)"))+scale_x_discrete(name="Patient")+scale_fill_discrete(name="Data type")+scale_fill_manual(name="",values=typeCol,labels=c("Crypts","Whole epithelium"))+theme(legend.justification = c(0, 1), legend.position = c(0, 1))
   }
-   
   for (j in 1:(nlayers-1)) {
     finalmask=rep(FALSE,nrow(alldata[alldata$prior==0,]))
     for (i in 1:length(lmasks))

@@ -7,7 +7,7 @@ rmdir r*
 for i in $(ls results/*.trees | xargs -n1 basename | sed "s/\.r.\.trees//" | uniq | sort);do mkdir results/$i; for j in results/$i*; do if [[ -f $j ]];then mv $j results/$i;fi;done;done
 for i in *phased*; do sbatch -c 3 Rscript.sbatch ../../../../scripts_singlecrypt/rwty.R $i 5 3;done
 
-for i in *phased*; do name=$(echo $i|sed "s/\///g");cd $i;sbatch -p private --mem 10000 <( echo -e '#!/bin/bash'"\nlogcombiner -trees -burnin 50000000 *.r*.trees combined.trees.mcc\ntreeannotator combined.trees.mcc ${name}_MCC.trees" );cd..;done 
+for i in *phased*; do name=$(echo $i|sed "s/\///g");cd $i;sbatch -p private --mem 10000 <( echo -e '#!/bin/bash'"\nlogcombiner -trees -burnin 25000000 *.r*.trees combined.trees.mcc\ntreeannotator combined.trees.mcc ${name}_MCC.trees" );cd..;done 
 
 mkdir MCC; for i in *phased*; do rm -f $i/combined.trees.mcc;mv $i/*MCC* MCC;done
 
@@ -19,3 +19,7 @@ for i in 500m/r1*
 do
     ./scripts_singlecrypt/merge_incomplete_beast_runs.sh $i
 done
+
+##Generating ages for statistical analyses
+cd data
+echo "patient type age" > ages.tsv;for i in *.xml; do patient=$(echo $i | sed "s/_phased.*//g");data=$(echo $i|sed "s/.*_100\(.*\)\.xml/\\1/g");if [[ $data != "_all" ]];then age=$(grep "<date" $i | sed "s/.*value=\"\([^\"]*\)\".*/\\1/g" | sort -n -r | uniq | head -1); echo $patient $data $age >> ages.tsv; fi;done

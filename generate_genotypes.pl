@@ -20,9 +20,10 @@ our $n_gen=250000000;
 our $output_format="human";
 our $input_dir="";
 our $sample_prior;
+our $rlc;
 our $seed=20;
 our $fixed;
-my $usage="\nUsage: $0 [options] -i input_directory -f format<nexus,xml,human> -s seed \n\nOptions:\n--------\n-p/--sample_prior: xml will make BEAST sample from the pior only (no data)\n\n";
+my $usage="\nUsage: $0 [options] -i input_directory -f format<nexus,xml,human> -s seed \n\nOptions:\n--------\n-p/--sample_prior: xml will make BEAST sample from the pior only (no data) --rlc: random local clock model\n\n";
 my $help;
 
 ######################################################
@@ -35,6 +36,7 @@ my $help;
         'input_dir|i=s' => \$input_dir,
         'format|f=s' => \$output_format,
         'sample_prior|p' => \$sample_prior,
+	'rlc' => \$rlc,
 	'seed|s=i' => \$seed,
 	'fixed_cnv' => \$fixed,
         'help|h' => \$help,
@@ -82,8 +84,10 @@ for my $filea (@files)
 	$fileb=~s/(.*)A.txt/$1B.txt/;
 	$id=~s/(.*)_phased.*.txt/$1/;
 	my $dob=$dobs{$id};
-	my $fbe=$fbes{$id};
-
+	my $fbe_stamp=$fbes{$id};
+	my $timeobject_fbe=Time::Seconds->new($fbe_stamp-$dob);
+	my $fbe=$timeobject_fbe->years;
+	
 	if (!defined($dob))
 	{
 		$dob=0;
@@ -303,6 +307,87 @@ for my $filea (@files)
 				<exponentialPrior mean="1.0" offset="0.0">
 					<parameter idref="cnv.conversion"/>
 				</exponentialPrior>};
+		my $clock;
+		my $branch_model;
+		my $operators_clock;
+		my $clock_priors;
+		my $n_changes_column;
+		my $clock_columns_log;
+		my $rlc_traits;
+		if ($rlc)
+		{
+			$clock=qq{<!-- The random local clock -->
+	<randomLocalClockModelCenancestor id="branchRates" ratesAreMultipliers="true">
+		<treeModel idref="treeModel"/>
+	        <rates>
+	                <parameter id="localClock.relativeRates"/>
+	        </rates>
+	        <rateIndicator>
+	                <parameter id="localClock.changes"/>
+	        </rateIndicator>
+	        <clockRate>
+	                <parameter id="clock.rate" value="1.0" lower="0.0"/>
+	        </clockRate>
+	</randomLocalClockModelCenancestor>
+	<sumStatistic id="rateChanges" name="rateChangeCount" elementwise="true">
+	        <parameter idref="localClock.changes"/>
+	</sumStatistic>
+	<rateStatisticCenancestor id="meanRate" name="meanRate" mode="mean" internal="true" external="true">
+	        <treeModel idref="treeModel"/>
+	        <randomLocalClockModelCenancestor idref="branchRates"/>
+	</rateStatisticCenancestor>
+	<rateStatisticCenancestor id="coefficientOfVariation" name="coefficientOfVariation" mode="coefficientOfVariation" internal="true" external="true">
+	        <treeModel idref="treeModel"/>
+	        <randomLocalClockModelCenancestor idref="branchRates"/>
+	</rateStatisticCenancestor>
+	<rateCovarianceStatistic id="covariance" name="covariance">
+	        <treeModel idref="treeModel"/>
+	        <randomLocalClockModelCenancestor idref="branchRates"/>
+	</rateCovarianceStatistic>};
+			$branch_model=qq{randomLocalClockModelCenancestor};
+			$operators_clock=qq{<scaleOperator scaleFactor="0.75" weight="15">
+			<parameter idref="localClock.relativeRates"/>
+		</scaleOperator>
+		<bitFlipOperator weight="15">
+			<parameter idref="localClock.changes"/>
+		</bitFlipOperator>};
+			$clock_priors=qq{<poissonPrior mean="0.6931471805599453" offset="0.0">
+					<statistic idref="rateChanges"/>
+				</poissonPrior>
+				<gammaPrior shape="0.5" scale="2.0" offset="0.0">
+					<parameter idref="localClock.relativeRates"/>
+				</gammaPrior>};
+			$n_changes_column=qq{<column lable="nchanges" sf="6" width="2">
+				<statistic idref="rateChanges"/>
+			</column>};
+			$clock_columns_log=qq{<statistic idref="rateChanges"/>
+			<parameter idref="localClock.changes"/>
+                        <parameter idref="localClock.relativeRates"/>
+			<rateStatisticCenancestor idref="meanRate"/>
+			<rateStatisticCenancestor idref="coefficientOfVariation"/>
+			<rateCovarianceStatistic idref="covariance"/>};
+			$rlc_traits=qq{<trait name="rates" tag="relRates">
+                                <randomLocalClockModelCenancestor idref="branchRates"/>
+                        </trait>
+                        <trait name="rateIndicator" tag="indicator">
+                                <randomLocalClockModelCenancestor idref="branchRates"/>
+                        </trait>};
+		} else
+		{
+			$clock=qq{<!-- The strict clock (Uniform rates across branches)                        -->
+
+	<strictClockCenancestorBranchRates id="branchRates">
+		<rate>
+			<parameter id="clock.rate" value="1"/>
+		</rate>
+	</strictClockCenancestorBranchRates>};
+			$branch_model=q{strictClockCenancestorBranchRates};
+			$operators_clock="";
+			$clock_priors="";
+			$n_changes_column="";
+			$clock_columns_log="";
+			$rlc_traits="";
+		}
 		if ($fixed)
 		{
 			$cnv_operators="";
@@ -353,13 +438,7 @@ for my $filea (@files)
 		</populationTree>
 	</coalescentLikelihood>
 
-	<!-- The strict clock (Uniform rates across branches)                        -->
- 
-	<strictClockCenancestorBranchRates id="branchRates">
-		<rate>
-			<parameter id="clock.rate" value="1"/>
-		</rate>
-	</strictClockCenancestorBranchRates>
+	$clock
 
 	<frequencyModel id="frequencies">
 		<dataType idref="cnv"/>
@@ -400,7 +479,7 @@ for my $filea (@files)
 			<parameter id="luca_branch" value="1" upper="$fbe" lower="0.0"/>
 			<!-- Value 1 as a safe starting value -->
 		</cenancestorBranch>
-		<strictClockCenancestorBranchRates idref="branchRates"/>
+		<$branch_model idref="branchRates"/>
 	</cenancestorTreeLikelihood>
 	
 	<operators id="operators" optimizationSchedule="default">
@@ -408,6 +487,7 @@ for my $filea (@files)
                         <parameter idref="clock.rate"/>
         	</scaleOperator>
 		$cnv_operators
+
 		<subtreeSlide size="2.5" gaussian="true" weight="15.0"> <!-- 2.5 years. They will be automatically optimized by BEAST though -->
 			<treeModel idref="treeModel"/>
 		</subtreeSlide>
@@ -426,7 +506,8 @@ for my $filea (@files)
 		<uniformOperator weight="30.0">
 			<parameter idref="treeModel.internalNodeHeights"/>
 		</uniformOperator>
-		
+		$operators_clock
+
 		<scaleOperator scaleFactor="0.2" weight="1.0"> <!-- We operate the branch since it is relative to the root. Operating luca_height is error prone, since it depends on the root -->
                         <parameter idref="luca_branch"/>
                 </scaleOperator>
@@ -441,6 +522,7 @@ for my $filea (@files)
                         </up>
                         <down>
                                 <parameter idref="treeModel.allInternalNodeHeights"/>
+				<parameter idref="luca_branch"/>
                         </down>
                 </upDownOperator>
 
@@ -456,11 +538,15 @@ for my $filea (@files)
 				</oneOnXPrior>
 	                        
 				<!-- Clock (gain) Rate Prior. -->
-	                        <logNormalPrior mean="-4.0" stdev="2.5" offset="0.0" meanInRealSpace="false">
+				<oneOnXPrior>
+	                        <!-- <logNormalPrior mean="-4.0" stdev="2.5" offset="0.0" meanInRealSpace="false"> -->
 	                                <parameter idref="clock.rate"/>
-	                        </logNormalPrior>
+				</oneOnXPrior>
+	                        <!-- </logNormalPrior> -->
 				$cnv_priors
-				                                
+				
+				$clock_priors
+	                                
 				<!-- Cenancestor Prior on the height, since it is easier to have a meaningfull prior on it (time of the initial development of the BE fragment) -->
                                 <uniformPrior lower="$diff_date" upper="$max_date">
                                 	<parameter idref="luca_height"/>
@@ -489,7 +575,7 @@ for my $filea (@files)
 			<column label="rel_conv_rate" sf="6" width="12">
 				<parameter idref="cnv.conversion"/>
 			</column>
-			<column label="gain_rate" sf="6" width="12">
+			<column label="clock_rate" sf="6" width="12">
 				<parameter idref="clock.rate"/>
 			</column>
 
@@ -504,6 +590,7 @@ for my $filea (@files)
 			<column label="luca_branch" sf="6" width="12">
 				<parameter idref="luca_branch"/>
 			</column>
+			$n_changes_column
 		</log>
 
 		<!-- write log to file                                                       -->
@@ -519,14 +606,17 @@ for my $filea (@files)
 			<parameter idref="constant.popSize"/>
 			<parameter idref="clock.rate"/>
 			<coalescentLikelihood idref="coalescent"/>
+			$clock_columns_log
+
 		</log>
 
 		<!-- write tree log to file                                                  -->
 		<logTree id="treeFileLog" logEvery="$period_log" nexusFormat="true" fileName="$beast_outname.trees" sortTranslationTable="true">
 			<treeModel idref="treeModel"/>
 			<trait name="rate" tag="rate">
-				<strictClockCenancestorBranchRates idref="branchRates"/>
+				<$branch_model idref="branchRates"/>
 			</trait>
+			$rlc_traits
 			<posterior idref="posterior"/>
 		</logTree>
 	</mcmc>
