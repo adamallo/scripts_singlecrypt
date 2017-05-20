@@ -522,7 +522,7 @@ for my $filea (@files)
                         </up>
                         <down>
                                 <parameter idref="treeModel.allInternalNodeHeights"/>
-				<parameter idref="luca_branch"/>
+				<!-- <parameter idref="luca_branch"/> -->
                         </down>
                 </upDownOperator>
 

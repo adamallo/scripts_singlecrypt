@@ -23,3 +23,9 @@ done
 ##Generating ages for statistical analyses
 cd data
 echo "patient type age" > ages.tsv;for i in *.xml; do patient=$(echo $i | sed "s/_phased.*//g");data=$(echo $i|sed "s/.*_100\(.*\)\.xml/\\1/g");if [[ $data != "_all" ]];then age=$(grep "<date" $i | sed "s/.*value=\"\([^\"]*\)\".*/\\1/g" | sort -n -r | uniq | head -1); echo $patient $data $age >> ages.tsv; fi;done
+
+##Minor stats for the paper
+#for i in `find . -regex ".*/[^29].*pool\.xml"`; do sed -n "/<taxon[^\/]*>/p" $i | wc -l ;done | awk 'BEGIN{a=0} {a=a+$1} END{print a}'
+for i in `find . -regex ".*/.*pool\.xml"`; do sed -n "/<taxon[^\/]*>/p" $i | wc -l ;done | awk 'BEGIN{a=0} {a=a+$1} END{print a}'
+#for i in `find . -regex ".*/[^29].*crypts\.xml"`; do sed -n "/<taxon[^\/]*>/p" $i | wc -l ;done | awk 'BEGIN{a=0} {a=a+$1} END{print a}'
+for i in `find . -regex ".*/.*crypts\.xml"`; do sed -n "/<taxon[^\/]*>/p" $i | wc -l ;done | awk 'BEGIN{a=0} {a=a+$1} END{print a}'

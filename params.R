@@ -3,7 +3,7 @@ library(plyr)
 library(birdring)
 library(grid)
 library(ggrepel)
-setwd("/Users/Diego/Desktop/singlecrypt/results/final/")
+setwd("/Users/Diego/Desktop/singlecrypt/results/newfinal/results/")
 arrayPat=c("391","437","451","740","848","852")
 allPat=c("256","391","437","451","740","848","852","911")
 rainbow <- c("#CC0033", "#FF6633", "#FFCC33", "#99CC33", "#009933", "#009999", "#003399", "#330066")
@@ -16,6 +16,7 @@ pats <- c(nprog, prog)
 patCol <- rainbow10[1:length(pats)]
 typeCol=c(rainbow[3],rainbow[5])
 names(typeCol)=c("crypts","pool")
+rlc=FALSE
 finalnames=character(0)
 for (pat in pats) {
   if (pat %in% prog) {
@@ -32,7 +33,7 @@ burnin=1000 #10%
 #arrayPat=allPat
 types=c("crypts","pool")
 
-ages=read.csv(file = "/Users/Diego/Desktop/singlecrypt/final_data/data/ages.tsv",sep = " ")
+ages=read.csv(file = "/Users/Diego/Desktop/singlecrypt/newfinal_data/data/ages.tsv",sep = " ")
 ages$newpatient=finalnames[as.character(ages$patient)]
 
 
@@ -85,7 +86,7 @@ rm(alldata)
 plotparams=c("gain.rate","conversion.rate","loss.rate","sga.rate","ne","ne2","luca_age") #HARDCODED
 n=length(arrayPat)*length(plotparams)
 results=data.frame(patient=vector("character",n),crypts_mean=vector("numeric",n),biopsies_mean=vector("numeric",n),p_diff=vector("numeric",n),ratekind=vector("character",n),stringsAsFactors = FALSE)
-for (npatient in 1:length(arrayPat))
+for (npatient in 1:(length(arrayPat)))
 {
   patient=arrayPat[npatient]
   rm(pdata)
@@ -115,6 +116,7 @@ for (npatient in 1:length(arrayPat))
       }
     }
     tdata$prior=rep(0,times=nrow(tdata))
+    priordata=priordata[,!(names(priordata) %in% c("treeLikelihood"))] ##Priordata had an extra reapeated column
     tdata=rbind(tdata,priordata)
     tdata$type=rep(type,times=nrow(tdata))
     tdata$prior=as.factor(tdata$prior)
@@ -133,10 +135,19 @@ for (npatient in 1:length(arrayPat))
     pname=paste0(patient,"-NP")
   }
   pdata$patient=rep(pname,times=nrow(pdata))
-  pdata$loss.rate=pdata$cnv.loss*pdata$clock.rate
-  pdata$conversion.rate=pdata$cnv.conversion*pdata$clock.rate
-  pdata$gain.rate=pdata$clock.rate
-  pdata$sga.rate=pdata$gain.rate+pdata$conversion.rate+pdata$loss.rate
+  if (rlc) {
+    pdata$cnv.gain=1/(pdata$cnv.loss+pdata$cnv.conversion+1)
+    pdata$loss.rate=pdata$cnv.loss*clock.rate
+    pdata$conversion.rate=pdata$cnv.conversion*clock.rate
+    pdata$gain.rate=pdata$cnv.gain*clock.rate
+    pdata$sga.rate=clock.rate
+  } else {
+    pdata$loss.rate=pdata$cnv.loss*pdata$clock.rate
+    pdata$conversion.rate=pdata$cnv.conversion*pdata$clock.rate
+    pdata$gain.rate=pdata$clock.rate
+    pdata$sga.rate=pdata$gain.rate+pdata$conversion.rate+pdata$loss.rate
+  }
+
   pdata$ne=pdata$constant.popSize*7.3 #0.02gen/day => 50days/gen => 7.3gen/year
   pdata$ne2=pdata$constant.popSize*52.14 #7 days/gen
   pdata$luca_age=apply(pdata,1,function(x){ages[ages$newpatient==pname & as.character(ages$type)==as.character(x["type"]),]$age-as.numeric(x["luca_height"])})
@@ -279,3 +290,14 @@ for (nparam in 1:length(plotparams)) {
   myplot=myplot+stat_summary(fun.y=mean,geom="point",position = position_dodge(width = 0.9),aes(shape=progressor),color="black",size=3)+geom_text(data=resultsplot[resultsplot$ratekind==param,],aes(y=y,x=patient,label=p_diff),color="black")+scale_shape_discrete(name="",labels=c("Non progressor","Progressor"))
   save_plot(paste0(name,".pdf"),plot=myplot,base_height=12)
 }
+
+##Statistical tests
+resultsplot[resultsplot$ratekind=="sga.rate",]
+wilcox.test(as.numeric(resultsplot[resultsplot$ratekind=="sga.rate" & resultsplot$progressor==TRUE,]$crypts_mean),as.numeric(resultsplot[resultsplot$ratekind=="sga.rate" & resultsplot$progressor==FALSE,]$crypts_mean))
+resultsplot[resultsplot$ratekind=="luca_age",]
+wilcox.test(as.numeric(resultsplot[resultsplot$ratekind=="luca_age" & resultsplot$progressor==TRUE,]$crypts_mean),as.numeric(resultsplot[resultsplot$ratekind=="luca_age" & resultsplot$progressor==FALSE,]$crypts_mean))
+
+
+
+
+
