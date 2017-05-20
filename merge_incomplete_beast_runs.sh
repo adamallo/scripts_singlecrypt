@@ -8,7 +8,8 @@ fi
 
 cd $1
 
-eliminate_extra=500050000
+#eliminate_extra=500050000
+eliminate_extra=250025000
 
 for i in *.xml
 do
