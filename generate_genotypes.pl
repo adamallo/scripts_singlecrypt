@@ -473,7 +473,7 @@ for my $filea (@files)
 		<treeModel idref="treeModel"/>
 		<siteModel idref="siteModel"/>
         	<cenancestorHeight>
-        		<parameter id="luca_height" lower="$diff_date" upper="$max_date"/>
+        		<parameter id="luca_height" value="0" upper="$max_date" lower="$diff_date" />
         	</cenancestorHeight>
 		<cenancestorBranch>
 			<parameter id="luca_branch" value="1" upper="$fbe" lower="0.0"/>
