@@ -14,6 +14,7 @@ Getopt::Long::Configure qw(gnu_getopt);
 our $max_n_copies=6;##So far I am considering until 6 copies per allele. We could modify this to only consider the maximum actual number. Important if we would create the substitution model accordingly.
 our $period_log=25000;
 our $n_gen=250000000;
+our $min_rate=0.00000001;
 
 ##ARGV variables
 ################
@@ -326,7 +327,7 @@ for my $filea (@files)
 	                <parameter id="localClock.changes"/>
 	        </rateIndicator>
 	        <clockRate>
-	                <parameter id="clock.rate" value="1.0" lower="0.0"/>
+	                <parameter id="clock.rate" value="1.0" lower="$min_rate"/>
 	        </clockRate>
 	</randomLocalClockModelCenancestor>
 	<sumStatistic id="rateChanges" name="rateChangeCount" elementwise="true">
